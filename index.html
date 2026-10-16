@@ -420,45 +420,116 @@
       renderSchedule();
     }
 
-    // ================= ПУШ-СПОВІЩЕННЯ ЗА 1 ХВ ДО ДЗВІНКА =================
+// ================= ПУШ-СПОВІЩЕННЯ ТА SERVICE WORKER =================
     const notifyBtn = document.getElementById('notify-btn');
+    let swRegistration = null;
+
+    // Реєстрація inline Service Worker для Android Chrome
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        self.addEventListener('notificationclick', function(event) {
+          event.notification.close();
+          event.waitUntil(
+            clients.matchAll({ type: 'window' }).then(function(clientList) {
+              if (event.notification.data && event.notification.data.url) {
+                return clients.openWindow(event.notification.data.url);
+              }
+            })
+          );
+        });
+      `;
+      const blob = new Blob([swCode], { type: 'application/javascript' });
+      navigator.serviceWorker.register(URL.createObjectURL(blob))
+        .then(reg => { swRegistration = reg; })
+        .catch(() => {});
+    }
 
     function updateNotifyBtnUI() {
-      if (notificationsEnabled && Notification.permission === 'granted') {
+      if (notificationsEnabled && ("Notification" in window) && Notification.permission === 'granted') {
         notifyBtn.innerHTML = '<i class="fa-solid fa-bell text-amber-400"></i>';
-        notifyBtn.title = "Нагадування увімкнено (за 1 хв до пари)";
+        notifyBtn.title = "Сповіщення увімкнено (натисніть для перевірки)";
       } else {
         notifyBtn.innerHTML = '<i class="fa-regular fa-bell"></i>';
         notifyBtn.title = "Увімкнути сповіщення";
       }
     }
 
+    // Звуковий сигнал через Web Audio (без зовнішніх файлів)
+    function playBeep() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      } catch (e) {}
+    }
+
+    // Універсальний показ пушу (працює і на ПК, і на смартфонах)
+    async function showMobilePush(title, bodyText, meetUrl) {
+      playBeep();
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+      // 1. Спроба через Service Worker (єдиний робочий метод на Android)
+      if (swRegistration && swRegistration.showNotification) {
+        try {
+          await swRegistration.showNotification(title, {
+            body: bodyText,
+            icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png",
+            vibrate: [200, 100, 200],
+            data: { url: meetUrl },
+            requireInteraction: true
+          });
+          return;
+        } catch (e) {}
+      }
+
+      // 2. Спроба через стандартний Notification (для ПК / Safari)
+      try {
+        const notif = new Notification(title, {
+          body: bodyText,
+          icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png"
+        });
+        notif.onclick = () => {
+          window.focus();
+          if (meetUrl) window.open(meetUrl, '_blank');
+        };
+      } catch (e) {}
+    }
+
     notifyBtn.addEventListener('click', async () => {
       if (!("Notification" in window)) {
-        alert("Ваш браузер не підтримує системні сповіщення.");
+        alert("Ваш браузер не підтримує сповіщення.");
         return;
       }
 
       if (Notification.permission === 'granted') {
-        notificationsEnabled = !notificationsEnabled;
-        localStorage.setItem('notifications_enabled', notificationsEnabled);
+        notificationsEnabled = true;
+        localStorage.setItem('notifications_enabled', 'true');
         updateNotifyBtnUI();
+        // Відправляємо миттєвий тестовий пуш
+        showMobilePush("🔔 Тест сповіщень", "Сповіщення працюють відмінно! За 1 хв до пари прийде нагадування.", "");
       } else if (Notification.permission !== 'denied') {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           notificationsEnabled = true;
           localStorage.setItem('notifications_enabled', 'true');
-          new Notification("Мій розклад", {
-            body: "Нагадування активовано! Сповіщення надходитимуть за 1 хвилину до дзвінка.",
-            icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png"
-          });
+          updateNotifyBtnUI();
+          showMobilePush("🔔 Сповіщення активовано", "За 1 хвилину до пари ви отримаєте нагадування.", "");
         }
-        updateNotifyBtnUI();
       } else {
-        alert("Сповіщення заблоковано в налаштуваннях браузера. Дозвольте їх у налаштуваннях сторінки.");
+        alert("Сповіщення заблоковано в налаштуваннях браузера. Надайте дозвіл для цього сайту.");
       }
     });
 
+    // Перевірка часу щосекунди для точного спрацьовування
     function checkUpcomingClasses() {
       if (!notificationsEnabled || Notification.permission !== 'granted') return;
 
@@ -467,7 +538,7 @@
       if (dayIndex === 0 || dayIndex === 6) return;
 
       const currentDayId = DAYS[dayIndex - 1].id;
-      const currentMinutesNow = now.getHours() * 60 + now.getMinutes();
+      const currentSecondsTotal = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
       const todayClasses = scheduleData.filter(item => {
         const matchDay = item.day.toLowerCase() === currentDayId.toLowerCase();
@@ -479,37 +550,31 @@
         if (!item.time) return;
 
         const startTimeStr = item.time.split('-')[0].trim();
-        const [h, m] = startTimeStr.split(':').map(Number);
-        if (isNaN(h) || isNaN(m)) return;
+        const parts = startTimeStr.split(':').map(Number);
+        if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
 
-        const classStartMinutes = h * 60 + m;
+        const classStartSeconds = parts[0] * 3600 + parts[1] * 60;
+        const diffSeconds = classStartSeconds - currentSecondsTotal;
 
-        // Рівно за 1 хвилину до початку
-        if (classStartMinutes - currentMinutesNow === 1) {
-          const notifKey = `notified_${currentGroup}_${currentDayId}_${item.num}_${now.toDateString()}_${h}_${m}`;
+        // Спрацьовує у проміжку від 60 до 5 секунд до початку
+        if (diffSeconds <= 60 && diffSeconds > 0) {
+          const notifKey = `notified_${currentGroup}_${item.num}_${now.toDateString()}_${parts[0]}_${parts[1]}`;
           
           if (!sessionStorage.getItem(notifKey)) {
             sessionStorage.setItem(notifKey, 'true');
 
-            const notification = new Notification(`🔔 За 1 хв пара: ${item.subject}`, {
-              body: `${item.time} | ${item.teacher || 'Викладач'}\nНатисніть, щоб підключитися.`,
-              icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png",
-              tag: `class-${item.num}`,
-              requireInteraction: true
-            });
-
-            notification.onclick = function() {
-              window.focus();
-              if (item.meet && item.meet.startsWith('http')) {
-                window.open(item.meet, '_blank');
-              }
-            };
+            showMobilePush(
+              `🔔 За 1 хв пара: ${item.subject}`,
+              `${item.time} | ${item.teacher || 'Викладач'}\nНатисніть для підключення`,
+              (item.meet && item.meet.startsWith('http')) ? item.meet : ''
+            );
           }
         }
       });
     }
 
-    setInterval(checkUpcomingClasses, 30000);
+    // Запускаємо перевірку кожні 5 секунд замість 30
+    setInterval(checkUpcomingClasses, 5000);
 
     // ================= ІНІЦІАЛІЗАЦІЯ СТОРІНКИ =================
     const urlParams = new URLSearchParams(window.location.search);
