@@ -19,7 +19,6 @@
       await OneSignal.init({
         appId: "7bfc97ea-9e80-4644-accc-75533dbc5f5d",
       });
-      // Прив'язуємо пристрій до вибраної групи
       const currentGrp = localStorage.getItem('selected_group') || 'БС-5.203к';
       OneSignal.User.addTag("group", currentGrp);
     });
@@ -49,8 +48,8 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Кнопка дозволу на реальні пуші -->
-        <button id="notify-btn" title="Увімкнути Push-сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
+        <!-- Кнопка дозволу на реальні Push-сповіщення -->
+        <button id="notify-btn" title="Увімкнути сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-regular fa-bell"></i>
         </button>
 
@@ -250,7 +249,7 @@
         return cols;
       });
 
-      // Оголошення (J2 та K2, K3)
+      // 1. Оголошення старости (J2 текст, K2 дата, K3 час)
       let msgText = '';
       let msgDate = '';
 
@@ -280,7 +279,7 @@
         currentAnnouncement = { text: msgText.trim(), date: msgDate.trim() };
       }
 
-      // Розклад
+      // 2. Розклад пар
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         const joined = row.join(' ').toLowerCase();
@@ -414,15 +413,52 @@
       renderSchedule();
     }
 
-    // Підписка на системні OneSignal Push-сповіщення
+    // ================= КЕРУВАННЯ ПІДПИСКОЮ НА СПОВІЩЕННЯ =================
     const notifyBtn = document.getElementById('notify-btn');
-    notifyBtn.addEventListener('click', () => {
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.Slidedown.promptPush();
+
+    function checkBellState() {
+      if ("Notification" in window && Notification.permission === 'granted') {
         notifyBtn.innerHTML = '<i class="fa-solid fa-bell text-amber-400"></i>';
-        notifyBtn.title = "Сповіщення активовано!";
-      });
+        notifyBtn.title = "Сповіщення увімкнено";
+      } else {
+        notifyBtn.innerHTML = '<i class="fa-regular fa-bell"></i>';
+        notifyBtn.title = "Увімкнути сповіщення";
+      }
+    }
+
+    notifyBtn.addEventListener('click', async () => {
+      if (!("Notification" in window)) {
+        alert("Ваш браузер не підтримує Push-сповіщення.");
+        return;
+      }
+
+      // Спроба через OneSignal v16 API
+      if (window.OneSignal) {
+        try {
+          if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
+            await OneSignal.Notifications.requestPermission();
+          } else if (OneSignal.Slidedown) {
+            await OneSignal.Slidedown.promptPush();
+          }
+        } catch (e) {
+          console.warn("OneSignal prompt fallback:", e);
+        }
+      }
+
+      // Прямий нативний запит дозволу браузера
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+      }
+
+      // Прив'язка групи після успішного дозволу
+      if (Notification.permission === 'granted') {
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(function(OneSignal) {
+          OneSignal.User.addTag("group", currentGroup);
+        });
+      }
+
+      checkBellState();
     });
 
     // Зміна групи та переприв'язка тегу OneSignal
@@ -438,7 +474,6 @@
       currentGroup = e.target.value;
       localStorage.setItem('selected_group', currentGroup);
       
-      // Оновлюємо групу для доставки пушів у OneSignal
       if (window.OneSignal) {
         OneSignal.User.addTag("group", currentGroup);
       }
@@ -467,8 +502,10 @@
       }
     });
 
+    // Запуск сторінки
     renderDays();
     setWeek(currentWeek);
+    checkBellState();
     updateManifest(currentGroup);
     fetchSchedule(currentGroup);
   </script>
