@@ -10,6 +10,21 @@
   <link id="manifest-placeholder" rel="manifest">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- OneSignal Web Push SDK -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "7bfc97ea-9e80-4644-accc-75533dbc5f5d",
+      });
+      // Прив'язуємо пристрій до вибраної групи
+      const currentGrp = localStorage.getItem('selected_group') || 'БС-5.203к';
+      OneSignal.User.addTag("group", currentGrp);
+    });
+  </script>
+
   <style>
     body { -webkit-tap-highlight-color: transparent; }
     .announcement-box {
@@ -34,17 +49,14 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Кнопка нагадувань (Push за 1 хв) -->
-        <button id="notify-btn" title="Увімкнути сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
+        <!-- Кнопка дозволу на реальні пуші -->
+        <button id="notify-btn" title="Увімкнути Push-сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-regular fa-bell"></i>
         </button>
 
-        <!-- Вибір групи -->
         <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[145px] sm:max-w-none">
-          <!-- Заповнюється автоматично -->
         </select>
 
-        <!-- Кнопка оновлення -->
         <button id="refresh-btn" title="Оновити розклад" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-solid fa-arrows-rotate"></i>
         </button>
@@ -75,7 +87,7 @@
       </div>
     </div>
 
-    <!-- Банер встановлення як додатка (PWA) -->
+    <!-- Банер встановлення PWA -->
     <div id="install-banner" class="hidden bg-blue-900/40 border border-blue-500/40 rounded-xl p-3 flex items-center justify-between gap-3 text-xs sm:text-sm">
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-mobile-screen-button text-blue-400 text-lg"></i>
@@ -86,7 +98,7 @@
       </button>
     </div>
 
-    <!-- Перемикач тижня (Чисельник / Знаменник) та днів -->
+    <!-- Перемикач тижня та днів -->
     <div class="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 shadow-sm flex flex-col gap-3">
       <div class="flex items-center justify-between bg-slate-900/70 p-1 rounded-xl">
         <button id="week-1-btn" class="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400">
@@ -98,7 +110,6 @@
       </div>
 
       <div class="grid grid-cols-5 gap-1.5" id="days-container">
-        <!-- Кнопки днів генеруються автоматично -->
       </div>
     </div>
 
@@ -112,15 +123,12 @@
   </main>
 
   <footer class="text-center py-4 text-xs text-slate-500 border-t border-slate-800">
-    Синхронізовано з Google Таблицею • Сповіщення за 1 хв до дзвінка
+    Синхронізовано з Google Таблицею • Хмарні сповіщення OneSignal
   </footer>
 
   <script>
-    // ================= НАЛАШТУВАННЯ =================
-    // Вшитий ідентифікатор вашої Google Таблиці
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
 
-    // Список груп коледжу
     const GROUPS = [
       'БС-5.203к', 'БС-5.201', 'БС-5.202к', 'БС-6.101', 'БС-6.102к',
       'БС-6.103к', 'БС-6.104к', 'СТ-6.105', 'СТ-6.106к', 'СТ-6.107к',
@@ -131,9 +139,7 @@
       'ТМ-5.215к', 'ТР-5.216', 'ТР-5.217к'
     ];
 
-    // Початок семестру для підрахунку парності
     const SEMESTER_START_DATE = '2026-09-01T00:00:00';
-    // ================================================
 
     const DAYS = [
       { id: 'Пн', name: 'Понеділок' },
@@ -149,7 +155,6 @@
     let scheduleData = [];
     let currentAnnouncement = null;
     let deferredPrompt;
-    let notificationsEnabled = localStorage.getItem('notifications_enabled') === 'true';
 
     function getInitialDay() {
       const d = new Date().getDay();
@@ -157,7 +162,7 @@
     }
 
     function getInitialWeek() {
-      const semesterStart = new Date(SEMEESTER_START_DATE = typeof SEMESTER_START_DATE !== 'undefined' ? SEMESTER_START_DATE : '2026-09-01T00:00:00');
+      const semesterStart = new Date(SEMESTER_START_DATE);
       const now = new Date();
       if (now < semesterStart) return 1;
 
@@ -179,21 +184,18 @@
         display: "standalone",
         background_color: "#0f172a",
         theme_color: "#1e293b",
-        icons: [
-          {
-            src: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable"
-          }
-        ]
+        icons: [{
+          src: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        }]
       };
       const stringManifest = JSON.stringify(manifest);
       const blob = new Blob([stringManifest], { type: 'application/json' });
       document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(blob));
     }
 
-    // Завантаження розкладу з Google Таблиць
     async function fetchSchedule(group) {
       const container = document.getElementById('schedule-container');
       container.innerHTML = `
@@ -211,18 +213,16 @@
         scheduleData = parseAdaptiveCSV(text);
         renderAnnouncement();
         renderSchedule();
-        checkUpcomingClasses();
       } catch (err) {
         container.innerHTML = `
           <div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center">
             <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl mb-2"></i>
             <p class="text-sm font-medium text-red-200">Помилка завантаження розкладу для "${group}"</p>
-            <p class="text-xs text-red-300 mt-1">Переконайтеся, що таблицю опубліковано в інтернеті та назва аркуша збігається.</p>
+            <p class="text-xs text-red-300 mt-1">Перевірте публікацію таблиці в інтернеті та назву аркуша.</p>
           </div>`;
       }
     }
 
-    // Повний адаптивний парсер під J2 (оголошення) та K2, K3 (дата і час)
     function parseAdaptiveCSV(text) {
       const rawLines = text.trim().split(/\r?\n/);
       if (rawLines.length === 0) return [];
@@ -231,7 +231,6 @@
       const rows = [];
       let scheduleHeaderIndex = -1;
 
-      // Коректне розбиття на стовпчики з урахуванням лапок
       const parsedRows = rawLines.map(line => {
         const cols = [];
         let inQuotes = false;
@@ -251,11 +250,10 @@
         return cols;
       });
 
-      // ================= 1. ПОШУК ОГОЛОШЕННЯ (J2 та K2, K3) =================
+      // Оголошення (J2 та K2, K3)
       let msgText = '';
       let msgDate = '';
 
-      // Варіант 1: Окремий заголовок "Оголошення"
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         if (row[0] && row[0].toLowerCase().includes('оголошення')) {
@@ -269,7 +267,6 @@
         }
       }
 
-      // Варіант 2: Стовпчик J (індекс 9) та стовпчик K (індекс 10)
       if (!msgText && parsedRows.length > 1) {
         if (parsedRows[1] && parsedRows[1].length > 9 && parsedRows[1][9]) {
           msgText = parsedRows[1][9];
@@ -280,13 +277,10 @@
       }
 
       if (msgText && msgText.trim() !== '') {
-        currentAnnouncement = {
-          text: msgText.trim(),
-          date: msgDate.trim()
-        };
+        currentAnnouncement = { text: msgText.trim(), date: msgDate.trim() };
       }
 
-      // ================= 2. ПОШУК РОЗКЛАДУ ПАР =================
+      // Розклад
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         const joined = row.join(' ').toLowerCase();
@@ -305,7 +299,7 @@
               rows.push({
                 day: cols[0],
                 num: cols[1],
-                week: cols[2], // Всі, 1, 2
+                week: cols[2],
                 time: cols[3],
                 subject: cols[4],
                 teacher: cols[5] || '',
@@ -420,163 +414,18 @@
       renderSchedule();
     }
 
-// ================= ПУШ-СПОВІЩЕННЯ ТА SERVICE WORKER =================
+    // Підписка на системні OneSignal Push-сповіщення
     const notifyBtn = document.getElementById('notify-btn');
-    let swRegistration = null;
-
-    // Реєстрація inline Service Worker для Android Chrome
-    if ('serviceWorker' in navigator) {
-      const swCode = `
-        self.addEventListener('notificationclick', function(event) {
-          event.notification.close();
-          event.waitUntil(
-            clients.matchAll({ type: 'window' }).then(function(clientList) {
-              if (event.notification.data && event.notification.data.url) {
-                return clients.openWindow(event.notification.data.url);
-              }
-            })
-          );
-        });
-      `;
-      const blob = new Blob([swCode], { type: 'application/javascript' });
-      navigator.serviceWorker.register(URL.createObjectURL(blob))
-        .then(reg => { swRegistration = reg; })
-        .catch(() => {});
-    }
-
-    function updateNotifyBtnUI() {
-      if (notificationsEnabled && ("Notification" in window) && Notification.permission === 'granted') {
+    notifyBtn.addEventListener('click', () => {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.Slidedown.promptPush();
         notifyBtn.innerHTML = '<i class="fa-solid fa-bell text-amber-400"></i>';
-        notifyBtn.title = "Сповіщення увімкнено (натисніть для перевірки)";
-      } else {
-        notifyBtn.innerHTML = '<i class="fa-regular fa-bell"></i>';
-        notifyBtn.title = "Увімкнути сповіщення";
-      }
-    }
-
-    // Звуковий сигнал через Web Audio (без зовнішніх файлів)
-    function playBeep() {
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15); // A5
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.4);
-      } catch (e) {}
-    }
-
-    // Універсальний показ пушу (працює і на ПК, і на смартфонах)
-    async function showMobilePush(title, bodyText, meetUrl) {
-      playBeep();
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-
-      // 1. Спроба через Service Worker (єдиний робочий метод на Android)
-      if (swRegistration && swRegistration.showNotification) {
-        try {
-          await swRegistration.showNotification(title, {
-            body: bodyText,
-            icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png",
-            vibrate: [200, 100, 200],
-            data: { url: meetUrl },
-            requireInteraction: true
-          });
-          return;
-        } catch (e) {}
-      }
-
-      // 2. Спроба через стандартний Notification (для ПК / Safari)
-      try {
-        const notif = new Notification(title, {
-          body: bodyText,
-          icon: "https://cdn-icons-png.flaticon.com/512/2997/2997295.png"
-        });
-        notif.onclick = () => {
-          window.focus();
-          if (meetUrl) window.open(meetUrl, '_blank');
-        };
-      } catch (e) {}
-    }
-
-    notifyBtn.addEventListener('click', async () => {
-      if (!("Notification" in window)) {
-        alert("Ваш браузер не підтримує сповіщення.");
-        return;
-      }
-
-      if (Notification.permission === 'granted') {
-        notificationsEnabled = true;
-        localStorage.setItem('notifications_enabled', 'true');
-        updateNotifyBtnUI();
-        // Відправляємо миттєвий тестовий пуш
-        showMobilePush("🔔 Тест сповіщень", "Сповіщення працюють відмінно! За 1 хв до пари прийде нагадування.", "");
-      } else if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          notificationsEnabled = true;
-          localStorage.setItem('notifications_enabled', 'true');
-          updateNotifyBtnUI();
-          showMobilePush("🔔 Сповіщення активовано", "За 1 хвилину до пари ви отримаєте нагадування.", "");
-        }
-      } else {
-        alert("Сповіщення заблоковано в налаштуваннях браузера. Надайте дозвіл для цього сайту.");
-      }
+        notifyBtn.title = "Сповіщення активовано!";
+      });
     });
 
-    // Перевірка часу щосекунди для точного спрацьовування
-    function checkUpcomingClasses() {
-      if (!notificationsEnabled || Notification.permission !== 'granted') return;
-
-      const now = new Date();
-      const dayIndex = now.getDay();
-      if (dayIndex === 0 || dayIndex === 6) return;
-
-      const currentDayId = DAYS[dayIndex - 1].id;
-      const currentSecondsTotal = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-
-      const todayClasses = scheduleData.filter(item => {
-        const matchDay = item.day.toLowerCase() === currentDayId.toLowerCase();
-        const matchWeek = item.week === 'Всі' || item.week == currentWeek || !item.week;
-        return matchDay && matchWeek;
-      });
-
-      todayClasses.forEach(item => {
-        if (!item.time) return;
-
-        const startTimeStr = item.time.split('-')[0].trim();
-        const parts = startTimeStr.split(':').map(Number);
-        if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return;
-
-        const classStartSeconds = parts[0] * 3600 + parts[1] * 60;
-        const diffSeconds = classStartSeconds - currentSecondsTotal;
-
-        // Спрацьовує у проміжку від 60 до 5 секунд до початку
-        if (diffSeconds <= 60 && diffSeconds > 0) {
-          const notifKey = `notified_${currentGroup}_${item.num}_${now.toDateString()}_${parts[0]}_${parts[1]}`;
-          
-          if (!sessionStorage.getItem(notifKey)) {
-            sessionStorage.setItem(notifKey, 'true');
-
-            showMobilePush(
-              `🔔 За 1 хв пара: ${item.subject}`,
-              `${item.time} | ${item.teacher || 'Викладач'}\nНатисніть для підключення`,
-              (item.meet && item.meet.startsWith('http')) ? item.meet : ''
-            );
-          }
-        }
-      });
-    }
-
-    // Запускаємо перевірку кожні 5 секунд замість 30
-    setInterval(checkUpcomingClasses, 5000);
-
-    // ================= ІНІЦІАЛІЗАЦІЯ СТОРІНКИ =================
+    // Зміна групи та переприв'язка тегу OneSignal
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('group') && GROUPS.includes(urlParams.get('group'))) {
       currentGroup = urlParams.get('group');
@@ -588,6 +437,12 @@
     select.addEventListener('change', (e) => {
       currentGroup = e.target.value;
       localStorage.setItem('selected_group', currentGroup);
+      
+      // Оновлюємо групу для доставки пушів у OneSignal
+      if (window.OneSignal) {
+        OneSignal.User.addTag("group", currentGroup);
+      }
+
       updateManifest(currentGroup);
       fetchSchedule(currentGroup);
     });
@@ -596,7 +451,6 @@
     document.getElementById('week-2-btn').onclick = () => setWeek(2);
     document.getElementById('refresh-btn').onclick = () => fetchSchedule(currentGroup);
 
-    // Встановлення PWA
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
@@ -613,10 +467,8 @@
       }
     });
 
-    // Перший запуск
     renderDays();
     setWeek(currentWeek);
-    updateNotifyBtnUI();
     updateManifest(currentGroup);
     fetchSchedule(currentGroup);
   </script>
