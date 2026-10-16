@@ -41,7 +41,7 @@
 
         <!-- Вибір групи -->
         <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[145px] sm:max-w-none">
-          <!-- Заповнюється скриптом -->
+          <!-- Заповнюється автоматично -->
         </select>
 
         <!-- Кнопка оновлення -->
@@ -54,7 +54,7 @@
 
   <main class="max-w-2xl mx-auto w-full p-4 flex-1 flex flex-col gap-4">
 
-    <!-- БЛОК: Важливе повідомлення від старости -->
+    <!-- БЛОК: Важливе повідомлення від старости (J2 текст, K2 дата, K3 час) -->
     <div id="announcement-card" class="hidden announcement-box bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border-l-4 border-amber-500 bg-slate-800/95 rounded-2xl p-4 shadow-lg">
       <div class="flex items-start justify-between gap-3">
         <div class="flex items-start gap-3">
@@ -75,11 +75,11 @@
       </div>
     </div>
 
-    <!-- Банер встановлення PWA -->
+    <!-- Банер встановлення як додатка (PWA) -->
     <div id="install-banner" class="hidden bg-blue-900/40 border border-blue-500/40 rounded-xl p-3 flex items-center justify-between gap-3 text-xs sm:text-sm">
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-mobile-screen-button text-blue-400 text-lg"></i>
-        <span id="install-text">Встановіть розклад на головний екран!</span>
+        <span id="install-text">Встановіть «Мій розклад» на головний екран!</span>
       </div>
       <button id="install-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors">
         Додати
@@ -117,7 +117,7 @@
 
   <script>
     // ================= НАЛАШТУВАННЯ =================
-    // Ідентифікатор вашої підключеної Google Таблиці
+    // Вшитий ідентифікатор вашої Google Таблиці
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
 
     // Список груп коледжу
@@ -131,7 +131,7 @@
       'ТМ-5.215к', 'ТР-5.216', 'ТР-5.217к'
     ];
 
-    // Точка відліку навчального семестру для розрахунку Чисельника/Знаменника
+    // Початок семестру для підрахунку парності
     const SEMESTER_START_DATE = '2026-09-01T00:00:00';
     // ================================================
 
@@ -157,7 +157,7 @@
     }
 
     function getInitialWeek() {
-      const semesterStart = new Date(SEMESTER_START_DATE);
+      const semesterStart = new Date(SEMEESTER_START_DATE = typeof SEMESTER_START_DATE !== 'undefined' ? SEMESTER_START_DATE : '2026-09-01T00:00:00');
       const now = new Date();
       if (now < semesterStart) return 1;
 
@@ -193,7 +193,7 @@
       document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(blob));
     }
 
-    // Завантаження розкладу з Google Таблиці
+    // Завантаження розкладу з Google Таблиць
     async function fetchSchedule(group) {
       const container = document.getElementById('schedule-container');
       container.innerHTML = `
@@ -217,12 +217,12 @@
           <div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center">
             <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl mb-2"></i>
             <p class="text-sm font-medium text-red-200">Помилка завантаження розкладу для "${group}"</p>
-            <p class="text-xs text-red-300 mt-1">Переконайтеся, що аркуш опубліковано в інтернеті та його назва збігається.</p>
+            <p class="text-xs text-red-300 mt-1">Переконайтеся, що таблицю опубліковано в інтернеті та назва аркуша збігається.</p>
           </div>`;
       }
     }
 
-    // Адаптивний парсер даних під структуру таблиці
+    // Повний адаптивний парсер під J2 (оголошення) та K2, K3 (дата і час)
     function parseAdaptiveCSV(text) {
       const rawLines = text.trim().split(/\r?\n/);
       if (rawLines.length === 0) return [];
@@ -231,6 +231,7 @@
       const rows = [];
       let scheduleHeaderIndex = -1;
 
+      // Коректне розбиття на стовпчики з урахуванням лапок
       const parsedRows = rawLines.map(line => {
         const cols = [];
         let inQuotes = false;
@@ -250,31 +251,42 @@
         return cols;
       });
 
-      // 1. Пошук оголошення
+      // ================= 1. ПОШУК ОГОЛОШЕННЯ (J2 та K2, K3) =================
+      let msgText = '';
+      let msgDate = '';
+
+      // Варіант 1: Окремий заголовок "Оголошення"
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         if (row[0] && row[0].toLowerCase().includes('оголошення')) {
-          let msgText = '';
-          let msgDate = '';
-
-          if (parsedRows[i + 1]) {
-            msgText = parsedRows[i + 1][0] || '';
-            msgDate = parsedRows[i + 1][1] || '';
+          if (parsedRows[i + 1] && parsedRows[i + 1][0]) {
+            msgText = parsedRows[i + 1][0];
           }
-          if (parsedRows[i + 2] && parsedRows[i + 2][1]) {
-            msgDate += (msgDate ? ' ' : '') + parsedRows[i + 2][1];
-          }
-
-          if (msgText.trim()) {
-            currentAnnouncement = {
-              text: msgText.trim(),
-              date: msgDate.trim()
-            };
-          }
+          const datePart = (parsedRows[i + 1] && parsedRows[i + 1][1]) ? parsedRows[i + 1][1] : '';
+          const timePart = (parsedRows[i + 2] && parsedRows[i + 2][1]) ? parsedRows[i + 2][1] : '';
+          msgDate = [datePart, timePart].filter(Boolean).join(' ');
+          break;
         }
       }
 
-      // 2. Пошук заголовка розкладу (де є "День" і "Пара")
+      // Варіант 2: Стовпчик J (індекс 9) та стовпчик K (індекс 10)
+      if (!msgText && parsedRows.length > 1) {
+        if (parsedRows[1] && parsedRows[1].length > 9 && parsedRows[1][9]) {
+          msgText = parsedRows[1][9];
+          const datePart = parsedRows[1][10] || '';
+          const timePart = (parsedRows[2] && parsedRows[2].length > 10) ? parsedRows[2][10] : '';
+          msgDate = [datePart, timePart].filter(Boolean).join(' ');
+        }
+      }
+
+      if (msgText && msgText.trim() !== '') {
+        currentAnnouncement = {
+          text: msgText.trim(),
+          date: msgDate.trim()
+        };
+      }
+
+      // ================= 2. ПОШУК РОЗКЛАДУ ПАР =================
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         const joined = row.join(' ').toLowerCase();
@@ -284,7 +296,6 @@
         }
       }
 
-      // 3. Зчитування пар
       if (scheduleHeaderIndex !== -1) {
         for (let i = scheduleHeaderIndex + 1; i < parsedRows.length; i++) {
           const cols = parsedRows[i];
@@ -294,7 +305,7 @@
               rows.push({
                 day: cols[0],
                 num: cols[1],
-                week: cols[2],
+                week: cols[2], // Всі, 1, 2
                 time: cols[3],
                 subject: cols[4],
                 teacher: cols[5] || '',
@@ -409,7 +420,7 @@
       renderSchedule();
     }
 
-    // ================= ПУШ-СПОВІЩЕННЯ ЗА 1 ХВ ДО ПАРИ =================
+    // ================= ПУШ-СПОВІЩЕННЯ ЗА 1 ХВ ДО ДЗВІНКА =================
     const notifyBtn = document.getElementById('notify-btn');
 
     function updateNotifyBtnUI() {
@@ -444,7 +455,7 @@
         }
         updateNotifyBtnUI();
       } else {
-        alert("Сповіщення заблоковано в налаштуваннях браузера. Надайте дозвіл у налаштуваннях сайту.");
+        alert("Сповіщення заблоковано в налаштуваннях браузера. Дозвольте їх у налаштуваннях сторінки.");
       }
     });
 
@@ -473,7 +484,7 @@
 
         const classStartMinutes = h * 60 + m;
 
-        // Рівно за 1 хвилину до дзвінка
+        // Рівно за 1 хвилину до початку
         if (classStartMinutes - currentMinutesNow === 1) {
           const notifKey = `notified_${currentGroup}_${currentDayId}_${item.num}_${now.toDateString()}_${h}_${m}`;
           
@@ -537,6 +548,7 @@
       }
     });
 
+    // Перший запуск
     renderDays();
     setWeek(currentWeek);
     updateNotifyBtnUI();
