@@ -18,6 +18,8 @@
     OneSignalDeferred.push(async function(OneSignal) {
       await OneSignal.init({
         appId: "7bfc97ea-9e80-4644-accc-75533dbc5f5d",
+        serviceWorkerParam: { scope: "/miy-rozklad/" },
+        serviceWorkerPath: "/miy-rozklad/OneSignalSDKWorker.js"
       });
       const currentGrp = localStorage.getItem('selected_group') || 'БС-5.203к';
       OneSignal.User.addTag("group", currentGrp);
@@ -279,7 +281,7 @@
         currentAnnouncement = { text: msgText.trim(), date: msgDate.trim() };
       }
 
-      // 2. Розклад пар
+      // 2. Розклад занять
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         const joined = row.join(' ').toLowerCase();
@@ -413,7 +415,7 @@
       renderSchedule();
     }
 
-    // ================= КЕРУВАННЯ ПІДПИСКОЮ НА СПОВІЩЕННЯ =================
+    // ================= КЕРУВАННЯ ДЗВІНОЧКОМ І ПІДПИСКОЮ =================
     const notifyBtn = document.getElementById('notify-btn');
 
     function checkBellState() {
@@ -432,7 +434,6 @@
         return;
       }
 
-      // Спроба через OneSignal v16 API
       if (window.OneSignal) {
         try {
           if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
@@ -441,16 +442,14 @@
             await OneSignal.Slidedown.promptPush();
           }
         } catch (e) {
-          console.warn("OneSignal prompt fallback:", e);
+          console.warn("OneSignal fallback:", e);
         }
       }
 
-      // Прямий нативний запит дозволу браузера
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         await Notification.requestPermission();
       }
 
-      // Прив'язка групи після успішного дозволу
       if (Notification.permission === 'granted') {
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(function(OneSignal) {
@@ -502,7 +501,7 @@
       }
     });
 
-    // Запуск сторінки
+    // Запуск
     renderDays();
     setWeek(currentWeek);
     checkBellState();
