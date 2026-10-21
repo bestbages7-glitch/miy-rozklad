@@ -35,6 +35,11 @@
       from { opacity: 0; transform: translateY(-10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    /* Сяйво та стиль активної пари */
+    .active-pair-card {
+      border-color: #10b981 !important;
+      box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(16, 185, 129, 0.05);
+    }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
@@ -50,12 +55,14 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Кнопка дозволу на реальні Push-сповіщення -->
+        <!-- Кнопка сповіщень -->
         <button id="notify-btn" title="Увімкнути сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-regular fa-bell"></i>
         </button>
 
+        <!-- Динамічний випадаючий список груп -->
         <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[145px] sm:max-w-none">
+          <option>Завантаження груп...</option>
         </select>
 
         <button id="refresh-btn" title="Оновити розклад" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
@@ -67,7 +74,7 @@
 
   <main class="max-w-2xl mx-auto w-full p-4 flex-1 flex flex-col gap-4">
 
-    <!-- БЛОК: Важливе повідомлення від старости (J2 текст, K2 дата, K3 час) -->
+    <!-- БЛОК: Важливе повідомлення (оголошення) -->
     <div id="announcement-card" class="hidden announcement-box bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border-l-4 border-amber-500 bg-slate-800/95 rounded-2xl p-4 shadow-lg">
       <div class="flex items-start justify-between gap-3">
         <div class="flex items-start gap-3">
@@ -129,17 +136,6 @@
 
   <script>
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
-
-    const GROUPS = [
-      'БС-5.203к', 'БС-5.201', 'БС-5.202к', 'БС-6.101', 'БС-6.102к',
-      'БС-6.103к', 'БС-6.104к', 'СТ-6.105', 'СТ-6.106к', 'СТ-6.107к',
-      'МН-6.108к', 'МН-6.109к', 'СТ-5.205', 'СТ-5.206к', 'СТ-5.207к',
-      'МН-5.208к', 'МН-5.209к', 'ЕМ-6.110', 'ЕМ-6.111к', 'ТМ-6.112',
-      'ХТ-6.113', 'ТМ-6.114к', 'ТМ-6.115к', 'ТР-6.116к', 'ТР-6.117к',
-      'ЕМ-5.210', 'ЕМ-5.211к', 'ТМ-5.212', 'ХТ-5.213', 'ТМ-5.214к',
-      'ТМ-5.215к', 'ТР-5.216', 'ТР-5.217к'
-    ];
-
     const SEMESTER_START_DATE = '2026-09-01T00:00:00';
 
     const DAYS = [
@@ -150,7 +146,8 @@
       { id: 'Пт', name: "П'ятниця" }
     ];
 
-    let currentGroup = localStorage.getItem('selected_group') || 'БС-5.203к';
+    let GROUPS = []; // Динамічно завантажується з аркуша "Групи"
+    let currentGroup = localStorage.getItem('selected_group') || '';
     let currentDay = getInitialDay();
     let currentWeek = getInitialWeek();
     let scheduleData = [];
@@ -172,11 +169,95 @@
       return (weekNumber % 2 === 0) ? 2 : 1;
     }
 
+    // 🚀 ПЕРЕВІРКА: ЧИ ТРИВАЄ ПАРА ПРЯМО ЗАРАЗ
+    function isPairCurrent(item) {
+      // 1. Перевіряємо день
+      const dayIndex = new Date().getDay();
+      const realTodayMap = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      const realTodayId = realTodayMap[dayIndex];
+      
+      if (currentDay !== realTodayId || item.day.toLowerCase() !== realTodayId.toLowerCase()) {
+        return false;
+      }
+
+      // 2. Перевіряємо тиждень
+      const realWeek = getInitialWeek();
+      if (currentWeek !== realWeek) return false;
+      if (item.week && item.week !== 'Всі' && item.week != realWeek) return false;
+
+      // 3. Перевіряємо час (наприклад: "09:00 - 10:20" або "09:00-10:20")
+      if (!item.time || !item.time.includes('-')) return false;
+
+      try {
+        const parts = item.time.split('-').map(t => t.trim());
+        if (parts.length !== 2) return false;
+
+        const [startH, startM] = parts[0].split(':').map(Number);
+        const [endH, endM] = parts[1].split(':').map(Number);
+
+        if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return false;
+
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+
+        return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // 🚀 ДИНАМІЧНЕ ЗАВАНТАЖЕННЯ СПИСКУ ГРУП З АРКУША "Групи" (Стовпчик A)
+    async function loadGroupsList() {
+      const select = document.getElementById('group-select');
+      select.innerHTML = '<option>Завантаження груп...</option>';
+
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&range=A2:A&t=${Date.now()}`;
+      
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Не вдалося завантажити аркуш 'Групи'");
+        const text = await res.text();
+        
+        GROUPS = text
+          .split(/\r?\n/)
+          .map(row => row.replace(/^"|"$/g, '').trim())
+          .filter(g => g.length > 0 && g.toLowerCase() !== 'назва групи' && g.toLowerCase() !== 'групи');
+
+        if (GROUPS.length === 0) throw new Error("Список груп порожній");
+
+      } catch (e) {
+        console.warn("Фолбек до списку за замовчуванням:", e);
+        GROUPS = ['БС-5.203к', 'СТ-6.106к'];
+      }
+
+      // Перевірка збереженої групи або URL (?group=...)
+      const urlParams = new URLSearchParams(window.location.search);
+      const groupFromUrl = urlParams.get('group');
+
+      if (groupFromUrl && GROUPS.includes(groupFromUrl)) {
+        currentGroup = groupFromUrl;
+      } else if (!currentGroup || !GROUPS.includes(currentGroup)) {
+        currentGroup = GROUPS[0];
+      }
+
+      localStorage.setItem('selected_group', currentGroup);
+
+      // Заповнюємо <select>
+      select.innerHTML = GROUPS.map(g => `<option value="${g}" ${g === currentGroup ? 'selected' : ''}>${g}</option>`).join('');
+
+      updateManifest(currentGroup);
+      fetchSchedule(currentGroup);
+    }
+
     function updateManifest(groupName) {
       const title = `Мій розклад ${groupName}`;
       document.title = title;
-      document.getElementById('app-title').innerHTML = `<i class="fa-solid fa-graduation-cap"></i> ${title}`;
-      document.getElementById('group-subtitle').textContent = `Група: ${groupName}`;
+      const appTitleElem = document.getElementById('app-title');
+      if (appTitleElem) appTitleElem.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> ${title}`;
+      const groupSubElem = document.getElementById('group-subtitle');
+      if (groupSubElem) groupSubElem.textContent = `Група: ${groupName}`;
 
       const manifest = {
         name: title,
@@ -194,7 +275,8 @@
       };
       const stringManifest = JSON.stringify(manifest);
       const blob = new Blob([stringManifest], { type: 'application/json' });
-      document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(blob));
+      const manifestElem = document.getElementById('manifest-placeholder');
+      if (manifestElem) manifestElem.setAttribute('href', URL.createObjectURL(blob));
     }
 
     async function fetchSchedule(group) {
@@ -219,7 +301,7 @@
           <div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center">
             <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl mb-2"></i>
             <p class="text-sm font-medium text-red-200">Помилка завантаження розкладу для "${group}"</p>
-            <p class="text-xs text-red-300 mt-1">Перевірте публікацію таблиці в інтернеті та назву аркуша.</p>
+            <p class="text-xs text-red-300 mt-1">Перевірте, чи існує вкладка з такою назвою в таблиці.</p>
           </div>`;
       }
     }
@@ -251,7 +333,7 @@
         return cols;
       });
 
-      // 1. Оголошення старости (J2 текст, K2 дата, K3 час)
+      // 1. Оголошення старости (колонки J, K)
       let msgText = '';
       let msgDate = '';
 
@@ -320,6 +402,8 @@
       const textElem = document.getElementById('announcement-text');
       const dateElem = document.getElementById('announcement-date');
 
+      if (!card) return;
+
       if (currentAnnouncement && currentAnnouncement.text) {
         textElem.textContent = currentAnnouncement.text;
         dateElem.textContent = currentAnnouncement.date ? `(${currentAnnouncement.date})` : '';
@@ -329,9 +413,12 @@
       }
     }
 
-    document.getElementById('dismiss-announcement-btn').onclick = () => {
-      document.getElementById('announcement-card').classList.add('hidden');
-    };
+    const dismissBtn = document.getElementById('dismiss-announcement-btn');
+    if (dismissBtn) {
+      dismissBtn.onclick = () => {
+        document.getElementById('announcement-card').classList.add('hidden');
+      };
+    }
 
     function renderSchedule() {
       const container = document.getElementById('schedule-container');
@@ -353,16 +440,29 @@
 
       container.innerHTML = filtered.map(item => {
         const hasMeet = item.meet && item.meet.startsWith('http');
+        const isCurrent = isPairCurrent(item);
+
         return `
-          <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-4 shadow-sm hover:border-blue-500/50 transition-colors">
+          <div class="bg-slate-800 border ${isCurrent ? 'active-pair-card border-2 ring-1 ring-emerald-500/50' : 'border-slate-700/80 hover:border-blue-500/50'} rounded-2xl p-4 shadow-sm transition-all relative">
             <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span class="bg-slate-700/80 text-blue-300 font-bold px-2 py-0.5 rounded-md">${item.num} пара</span>
-              <span class="font-mono text-slate-300"><i class="fa-regular fa-clock mr-1"></i>${item.time}</span>
+              <div class="flex items-center gap-2">
+                <span class="${isCurrent ? 'bg-emerald-600 text-white' : 'bg-slate-700/80 text-blue-300'} font-bold px-2 py-0.5 rounded-md">
+                  ${item.num} пара
+                </span>
+                ${isCurrent ? `
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Зараз триває
+                  </span>
+                ` : ''}
+              </div>
+              <span class="font-mono ${isCurrent ? 'text-emerald-300 font-bold' : 'text-slate-300'}">
+                <i class="fa-regular fa-clock mr-1"></i>${item.time}
+              </span>
             </div>
 
             <div class="mb-3">
               ${hasMeet 
-                ? `<a href="${item.meet}" target="_blank" rel="noopener noreferrer" class="text-base font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                ? `<a href="${item.meet}" target="_blank" rel="noopener noreferrer" class="text-base font-bold ${isCurrent ? 'text-emerald-300 hover:text-emerald-200' : 'text-blue-400 hover:text-blue-300'} transition-colors flex items-center gap-1.5">
                      <span>${item.subject}</span>
                      <i class="fa-solid fa-arrow-up-right-from-square text-xs opacity-70"></i>
                    </a>`
@@ -376,7 +476,7 @@
 
             ${hasMeet ? `
               <a href="${item.meet}" target="_blank" rel="noopener noreferrer" 
-                 class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] transition-all text-white font-medium text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                 class="w-full ${isCurrent ? 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-900/30' : 'bg-emerald-600 hover:bg-emerald-500'} active:scale-[0.98] transition-all text-white font-medium text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-md">
                 <i class="fa-solid fa-video"></i> Увійти в Google Meet
               </a>` : ''
             }
@@ -387,6 +487,7 @@
 
     function renderDays() {
       const container = document.getElementById('days-container');
+      if (!container) return;
       container.innerHTML = DAYS.map(d => `
         <button onclick="selectDay('${d.id}')" 
           class="py-2 rounded-xl text-xs font-semibold transition-all ${currentDay === d.id ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700'}">
@@ -405,20 +506,23 @@
       currentWeek = w;
       const b1 = document.getElementById('week-1-btn');
       const b2 = document.getElementById('week-2-btn');
-      if (w === 1) {
-        b1.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow";
-        b2.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white";
-      } else {
-        b2.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow";
-        b1.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white";
+      if (b1 && b2) {
+        if (w === 1) {
+          b1.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow";
+          b2.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white";
+        } else {
+          b2.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow";
+          b1.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white";
+        }
       }
       renderSchedule();
     }
 
-    // ================= КЕРУВАННЯ ДЗВІНОЧКОМ І ПІДПИСКОЮ =================
+    // Дзвіночок і підписка OneSignal
     const notifyBtn = document.getElementById('notify-btn');
 
     function checkBellState() {
+      if (!notifyBtn) return;
       if ("Notification" in window && Notification.permission === 'granted') {
         notifyBtn.innerHTML = '<i class="fa-solid fa-bell text-amber-400"></i>';
         notifyBtn.title = "Сповіщення увімкнено";
@@ -428,85 +532,40 @@
       }
     }
 
-    notifyBtn.addEventListener('click', async () => {
-      if (!("Notification" in window)) {
-        alert("Ваш браузер не підтримує Push-сповіщення.");
-        return;
-      }
-
-      if (window.OneSignal) {
-        try {
-          if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-            await OneSignal.Notifications.requestPermission();
-          } else if (OneSignal.Slidedown) {
-            await OneSignal.Slidedown.promptPush();
-          }
-        } catch (e) {
-          console.warn("OneSignal fallback:", e);
+    if (notifyBtn) {
+      notifyBtn.addEventListener('click', async () => {
+        if (!("Notification" in window)) {
+          alert("Ваш браузер не підтримує Push-сповіщення.");
+          return;
         }
-      }
 
-      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-        await Notification.requestPermission();
-      }
+        if (window.OneSignal) {
+          try {
+            if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
+              await OneSignal.Notifications.requestPermission();
+            } else if (OneSignal.Slidedown) {
+              await OneSignal.Slidedown.promptPush();
+            }
+          } catch (e) {
+            console.warn("OneSignal fallback:", e);
+          }
+        }
 
-      if (Notification.permission === 'granted') {
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        OneSignalDeferred.push(function(OneSignal) {
-          OneSignal.User.addTag("group", currentGroup);
-        });
-      }
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          await Notification.requestPermission();
+        }
 
-      checkBellState();
-    });
+        if (Notification.permission === 'granted') {
+          window.OneSignalDeferred = window.OneSignalDeferred || [];
+          OneSignalDeferred.push(function(OneSignal) {
+            OneSignal.User.addTag("group", currentGroup);
+          });
+        }
 
-    // Зміна групи та переприв'язка тегу OneSignal
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('group') && GROUPS.includes(urlParams.get('group'))) {
-      currentGroup = urlParams.get('group');
+        checkBellState();
+      });
     }
 
+    // Вибір групи користувачем
     const select = document.getElementById('group-select');
-    select.innerHTML = GROUPS.map(g => `<option value="${g}" ${g === currentGroup ? 'selected' : ''}>${g}</option>`).join('');
-    
-    select.addEventListener('change', (e) => {
-      currentGroup = e.target.value;
-      localStorage.setItem('selected_group', currentGroup);
-      
-      if (window.OneSignal) {
-        OneSignal.User.addTag("group", currentGroup);
-      }
-
-      updateManifest(currentGroup);
-      fetchSchedule(currentGroup);
-    });
-
-    document.getElementById('week-1-btn').onclick = () => setWeek(1);
-    document.getElementById('week-2-btn').onclick = () => setWeek(2);
-    document.getElementById('refresh-btn').onclick = () => fetchSchedule(currentGroup);
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      document.getElementById('install-banner').classList.remove('hidden');
-      document.getElementById('install-text').innerText = `Встановити «Мій розклад ${currentGroup}»`;
-    });
-
-    document.getElementById('install-btn').addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        document.getElementById('install-banner').classList.add('hidden');
-      }
-    });
-
-    // Запуск
-    renderDays();
-    setWeek(currentWeek);
-    checkBellState();
-    updateManifest(currentGroup);
-    fetchSchedule(currentGroup);
-  </script>
-</body>
-</html>
+    if (select) {
