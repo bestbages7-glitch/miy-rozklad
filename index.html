@@ -38,7 +38,7 @@
     /* Сяйво та стиль активної пари */
     .active-pair-card {
       border-color: #10b981 !important;
-      box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(16, 185, 129, 0.05);
+      box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.35), inset 0 0 10px rgba(16, 185, 129, 0.05);
     }
   </style>
 </head>
@@ -55,14 +55,12 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Кнопка сповіщень -->
         <button id="notify-btn" title="Увімкнути сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-regular fa-bell"></i>
         </button>
 
-        <!-- Динамічний випадаючий список груп -->
         <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[145px] sm:max-w-none">
-          <option>Завантаження груп...</option>
+          <option>Завантаження...</option>
         </select>
 
         <button id="refresh-btn" title="Оновити розклад" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
@@ -138,6 +136,17 @@
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
     const SEMESTER_START_DATE = '2026-09-01T00:00:00';
 
+    // Базовий список груп (завжди страхує, якщо зв'язок або аркуш "Групи" недоступний)
+    const DEFAULT_GROUPS = [
+      'БС-5.203к', 'БС-5.201', 'БС-5.202к', 'БС-6.101', 'БС-6.102к',
+      'БС-6.103к', 'БС-6.104к', 'СТ-6.105', 'СТ-6.106к', 'СТ-6.107к',
+      'МН-6.108к', 'МН-6.109к', 'СТ-5.205', 'СТ-5.206к', 'СТ-5.207к',
+      'МН-5.208к', 'МН-5.209к', 'ЕМ-6.110', 'ЕМ-6.111к', 'ТМ-6.112',
+      'ХТ-6.113', 'ТМ-6.114к', 'ТМ-6.115к', 'ТР-6.116к', 'ТР-6.117к',
+      'ЕМ-5.210', 'ЕМ-5.211к', 'ТМ-5.212', 'ХТ-5.213', 'ТМ-5.214к',
+      'ТМ-5.215к', 'ТР-5.216', 'ТР-5.217к'
+    ];
+
     const DAYS = [
       { id: 'Пн', name: 'Понеділок' },
       { id: 'Вт', name: 'Вівторок' },
@@ -146,8 +155,8 @@
       { id: 'Пт', name: "П'ятниця" }
     ];
 
-    let GROUPS = []; // Динамічно завантажується з аркуша "Групи"
-    let currentGroup = localStorage.getItem('selected_group') || '';
+    let GROUPS = [...DEFAULT_GROUPS];
+    let currentGroup = localStorage.getItem('selected_group') || 'БС-5.203к';
     let currentDay = getInitialDay();
     let currentWeek = getInitialWeek();
     let scheduleData = [];
@@ -171,25 +180,27 @@
 
     // 🚀 ПЕРЕВІРКА: ЧИ ТРИВАЄ ПАРА ПРЯМО ЗАРАЗ
     function isPairCurrent(item) {
-      // 1. Перевіряємо день
       const dayIndex = new Date().getDay();
       const realTodayMap = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
       const realTodayId = realTodayMap[dayIndex];
       
+      // Пара підсвічується лише якщо обрано сьогоднішній реальний день
       if (currentDay !== realTodayId || item.day.toLowerCase() !== realTodayId.toLowerCase()) {
         return false;
       }
 
-      // 2. Перевіряємо тиждень
       const realWeek = getInitialWeek();
       if (currentWeek !== realWeek) return false;
       if (item.week && item.week !== 'Всі' && item.week != realWeek) return false;
 
-      // 3. Перевіряємо час (наприклад: "09:00 - 10:20" або "09:00-10:20")
-      if (!item.time || !item.time.includes('-')) return false;
+      if (!item.time) return false;
+
+      // Підтримка дефіса, короткого та довгого тире: -, –, —
+      const normalizedTime = item.time.replace(/[–—]/g, '-');
+      if (!normalizedTime.includes('-')) return false;
 
       try {
-        const parts = item.time.split('-').map(t => t.trim());
+        const parts = normalizedTime.split('-').map(t => t.trim());
         if (parts.length !== 2) return false;
 
         const [startH, startM] = parts[0].split(':').map(Number);
@@ -208,43 +219,50 @@
       }
     }
 
-    // 🚀 ДИНАМІЧНЕ ЗАВАНТАЖЕННЯ СПИСКУ ГРУП З АРКУША "Групи" (Стовпчик A)
+    // 🚀 БЕЗПЕЧНЕ ЗАВАНТАЖЕННЯ ГРУП
     async function loadGroupsList() {
       const select = document.getElementById('group-select');
-      select.innerHTML = '<option>Завантаження груп...</option>';
-
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&range=A2:A&t=${Date.now()}`;
+      
+      // Завантажуємо весь аркуш "Групи" у CSV
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
       
       try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Не вдалося завантажити аркуш 'Групи'");
-        const text = await res.text();
-        
-        GROUPS = text
-          .split(/\r?\n/)
-          .map(row => row.replace(/^"|"$/g, '').trim())
-          .filter(g => g.length > 0 && g.toLowerCase() !== 'назва групи' && g.toLowerCase() !== 'групи');
+        if (res.ok) {
+          const text = await res.text();
+          const lines = text.split(/\r?\n/);
+          const parsedGroups = [];
 
-        if (GROUPS.length === 0) throw new Error("Список груп порожній");
+          lines.forEach((line, idx) => {
+            if (!line.trim()) return;
+            // Беремо першу колонку
+            const firstCell = line.split(',')[0].replace(/^"|"$/g, '').trim();
+            if (firstCell && firstCell.toLowerCase() !== 'назва групи' && firstCell.toLowerCase() !== 'групи') {
+              parsedGroups.push(firstCell);
+            }
+          });
 
+          if (parsedGroups.length > 0) {
+            GROUPS = parsedGroups;
+          }
+        }
       } catch (e) {
-        console.warn("Фолбек до списку за замовчуванням:", e);
-        GROUPS = ['БС-5.203к', 'СТ-6.106к'];
+        console.warn("Аркуш 'Групи' недоступний, використовуємо стандартний список:", e);
       }
 
-      // Перевірка збереженої групи або URL (?group=...)
+      // Перевіряємо URL параметр
       const urlParams = new URLSearchParams(window.location.search);
       const groupFromUrl = urlParams.get('group');
 
       if (groupFromUrl && GROUPS.includes(groupFromUrl)) {
         currentGroup = groupFromUrl;
-      } else if (!currentGroup || !GROUPS.includes(currentGroup)) {
+      } else if (!GROUPS.includes(currentGroup)) {
         currentGroup = GROUPS[0];
       }
 
       localStorage.setItem('selected_group', currentGroup);
 
-      // Заповнюємо <select>
+      // Заповнюємо селектор
       select.innerHTML = GROUPS.map(g => `<option value="${g}" ${g === currentGroup ? 'selected' : ''}>${g}</option>`).join('');
 
       updateManifest(currentGroup);
@@ -301,7 +319,7 @@
           <div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center">
             <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl mb-2"></i>
             <p class="text-sm font-medium text-red-200">Помилка завантаження розкладу для "${group}"</p>
-            <p class="text-xs text-red-300 mt-1">Перевірте, чи існує вкладка з такою назвою в таблиці.</p>
+            <p class="text-xs text-red-300 mt-1">Перевірте, чи існує вкладка з точною назвою в Google Таблиці.</p>
           </div>`;
       }
     }
@@ -333,7 +351,7 @@
         return cols;
       });
 
-      // 1. Оголошення старости (колонки J, K)
+      // 1. Оголошення старости (J2 текст, K2 дата, K3 час)
       let msgText = '';
       let msgDate = '';
 
@@ -566,7 +584,6 @@
       });
     }
 
-    // Вибір групи користувачем
     const select = document.getElementById('group-select');
     if (select) {
       select.addEventListener('change', (e) => {
@@ -612,16 +629,16 @@
       });
     }
 
-    // Автоматичне перемальовування підсвічування щохвилини
+    // Автоматичне оновлення кожні 30 секунд (перевірка початку/кінця пари)
     setInterval(() => {
       renderSchedule();
-    }, 60000);
+    }, 30000);
 
-    // 🚀 СТАРТ ДОДАТКА
+    // Ініціалізація
     renderDays();
     setWeek(currentWeek);
     checkBellState();
-    loadGroupsList(); // Завантажує групи з аркуша "Групи" -> завантажує розклад
+    loadGroupsList();
   </script>
 </body>
 </html>
