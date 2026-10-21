@@ -569,3 +569,59 @@
     // Вибір групи користувачем
     const select = document.getElementById('group-select');
     if (select) {
+      select.addEventListener('change', (e) => {
+        currentGroup = e.target.value;
+        localStorage.setItem('selected_group', currentGroup);
+        
+        if (window.OneSignal) {
+          OneSignal.User.addTag("group", currentGroup);
+        }
+
+        updateManifest(currentGroup);
+        fetchSchedule(currentGroup);
+      });
+    }
+
+    const w1Btn = document.getElementById('week-1-btn');
+    if (w1Btn) w1Btn.onclick = () => setWeek(1);
+
+    const w2Btn = document.getElementById('week-2-btn');
+    if (w2Btn) w2Btn.onclick = () => setWeek(2);
+
+    const refBtn = document.getElementById('refresh-btn');
+    if (refBtn) refBtn.onclick = () => fetchSchedule(currentGroup);
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const banner = document.getElementById('install-banner');
+      if (banner) banner.classList.remove('hidden');
+      const text = document.getElementById('install-text');
+      if (text) text.innerText = `Встановити «Мій розклад ${currentGroup}»`;
+    });
+
+    const instBtn = document.getElementById('install-btn');
+    if (instBtn) {
+      instBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          document.getElementById('install-banner').classList.add('hidden');
+        }
+      });
+    }
+
+    // Автоматичне перемальовування підсвічування щохвилини
+    setInterval(() => {
+      renderSchedule();
+    }, 60000);
+
+    // 🚀 СТАРТ ДОДАТКА
+    renderDays();
+    setWeek(currentWeek);
+    checkBellState();
+    loadGroupsList(); // Завантажує групи з аркуша "Групи" -> завантажує розклад
+  </script>
+</body>
+</html>
