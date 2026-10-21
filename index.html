@@ -216,7 +216,7 @@
       }
     }
 
-    // Завантаження списку груп та режиму (аркуш "Групи")
+    // НАДІЙНИЙ ПАРСИНГ ГРУП ТА РЕЖИМУ (СКАНУВАННЯ ВЕРХНЬОЇ ШАПКИ АРКУША)
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
@@ -228,23 +228,44 @@
           const parsed = parseCsvSafe(text);
           const parsedGroups = [];
 
-          parsed.forEach((cols, idx) => {
+          // 1. Зчитуємо назви груп із першої колонки
+          parsed.forEach(cols => {
             if (cols[0]) {
               const val = cols[0].trim();
-              if (val.toLowerCase() !== 'назва групи' && val.toLowerCase() !== 'групи') {
+              if (val.length > 0 && val.toLowerCase() !== 'назва групи' && val.toLowerCase() !== 'групи') {
                 parsedGroups.push(val);
               }
             }
-            if (idx === 1) { // Рядок 2 у таблиці: C2 - Режим, D2 - Повідомлення
-              if (cols[2]) currentSystemMode = cols[2].trim().toLowerCase();
-              if (cols[3]) systemModeMessage = cols[3].trim();
-            }
           });
+
+          // 2. Гнучке сканування всієї сітки на ключові слова режимів
+          currentSystemMode = "навчання";
+          systemModeMessage = "";
+
+          for (let r = 0; r < Math.min(parsed.length, 12); r++) {
+            for (let c = 0; c < parsed[r].length; c++) {
+              const cell = (parsed[r][c] || '').trim().toLowerCase();
+              if (cell.includes('канікули')) {
+                currentSystemMode = 'канікули';
+                systemModeMessage = parsed[r][c + 1] || '';
+                break;
+              } else if (cell.includes('сесія') || cell.includes('сессия')) {
+                currentSystemMode = 'сесія';
+                systemModeMessage = parsed[r][c + 1] || '';
+                break;
+              } else if (cell.includes('практика')) {
+                currentSystemMode = 'практика';
+                systemModeMessage = parsed[r][c + 1] || '';
+                break;
+              }
+            }
+            if (currentSystemMode !== 'навчання') break;
+          }
 
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
         }
       } catch (e) {
-        console.warn("Фолбек до стандартних груп:", e);
+        console.warn("Помилка завантаження аркуша груп:", e);
       }
 
       const urlParams = new URLSearchParams(window.location.search);
@@ -328,7 +349,7 @@
             <i class="fa-solid fa-umbrella-beach"></i>
           </div>
           <h2 class="text-xl font-bold text-blue-200">Канікули!</h2>
-          <p class="text-sm text-slate-300 mt-2 leading-relaxed max-w-md mx-auto">
+          <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">
             ${systemModeMessage || 'Наразі занять немає. Бажаємо гарного та продуктивного відпочинку!'}
           </p>
           <div class="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-400">
