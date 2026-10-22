@@ -103,7 +103,7 @@
       </button>
     </div>
 
-    <!-- Перемикач тижня та днів (автоматично ховається під час Канікул, Практики або Сесії) -->
+    <!-- Перемикач тижня та днів -->
     <div id="schedule-controls" class="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 shadow-sm flex flex-col gap-3">
       <div class="flex items-center justify-between bg-slate-900/70 p-1 rounded-xl">
         <button id="week-1-btn" class="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400">
@@ -152,15 +152,13 @@
       { id: 'Пт', name: "П'ятниця" }
     ];
 
-    // Динамічні налаштування семестру (завантажуються з аркуша "Групи")
     let semesterSettings = {
       semester: "1",
       startDate: new Date('2026-09-01T00:00:00'),
       changeDay: "Вівторок"
     };
 
-    let currentSystemMode = "навчання";
-    let systemModeMessage = "";
+    let groupStatusData = {}; // Карта { "БС-5.203к": { status: "навчання", msg: "..." } }
     let GROUPS = [...DEFAULT_GROUPS];
     let currentGroup = localStorage.getItem('selected_group') || 'БС-5.203к';
     let currentDay = getInitialDay();
@@ -185,7 +183,7 @@
       if (n.startsWith('пт')) return 4;
       if (n.startsWith('сб')) return 5;
       if (n.startsWith('нд')) return 6;
-      return 0; // Понеділок (0)
+      return 0;
     }
 
     function parseCustomDate(val) {
@@ -202,7 +200,6 @@
       return null;
     }
 
-    // 🚀 ГНУЧКИЙ РОЗРАХУНОК НОМЕРА ТИЖНЯ (ЧИСЕЛЬНИК / ЗНАМЕННИК)
     function calculateCurrentWeek() {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
@@ -216,9 +213,7 @@
       const changeDayIdx = parseWeekdayNameToIndex(semesterSettings.changeDay);
 
       let daysToFirstRollover = (changeDayIdx - startDayIdx) % 7;
-      if (daysToFirstRollover <= 0) {
-        daysToFirstRollover += 7;
-      }
+      if (daysToFirstRollover <= 0) daysToFirstRollover += 7;
 
       const firstRollover = new Date(start);
       firstRollover.setDate(start.getDate() + daysToFirstRollover);
@@ -233,8 +228,18 @@
       }
     }
 
+    function getCurrentGroupStatus() {
+      const g = groupStatusData[currentGroup.toLowerCase()];
+      return g ? g.status : "навчання";
+    }
+
+    function getCurrentGroupMessage() {
+      const g = groupStatusData[currentGroup.toLowerCase()];
+      return g ? g.msg : "";
+    }
+
     function isPairCurrent(item) {
-      if (currentSystemMode !== 'навчання') return false;
+      if (getCurrentGroupStatus() !== 'навчання') return false;
 
       const dayIndex = new Date().getDay();
       const realTodayMap = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
@@ -269,7 +274,7 @@
       }
     }
 
-    // НАДІЙНИЙ ПАРСИНГ ГРУП, РЕЖИМУ ТА НАЛАШТУВАНЬ СЕМЕСТРУ
+    // ЗЧИТУВАННЯ ГРУП, ІНДИВІДУАЛЬНИХ СТАТУСІВ ТА ПАРАМЕТРІВ СЕМЕСТРУ
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
@@ -280,55 +285,30 @@
           const text = await res.text();
           const parsed = parseCsvSafe(text);
           const parsedGroups = [];
+          groupStatusData = {};
 
-          // 1. Групи з колонки A
-          parsed.forEach(cols => {
+          parsed.forEach((cols, idx) => {
             if (cols[0]) {
               const val = cols[0].trim();
               if (val.length > 0 && val.toLowerCase() !== 'назва групи' && val.toLowerCase() !== 'групи') {
                 parsedGroups.push(val);
+                // Зчитуємо стовпчик B (статус) та C (повідомлення)
+                const status = cols[1] ? cols[1].trim().toLowerCase() : "навчання";
+                const msg = cols[2] ? cols[2].trim() : "";
+                groupStatusData[val.toLowerCase()] = { status: status || "навчання", msg: msg };
               }
             }
           });
 
-          // 2. Режим системи
-          currentSystemMode = "навчання";
-          systemModeMessage = "";
-
-          for (let r = 0; r < Math.min(parsed.length, 12); r++) {
-            for (let c = 0; c < parsed[r].length; c++) {
-              const cell = (parsed[r][c] || '').trim().toLowerCase();
-              if (cell.includes('канікули')) {
-                currentSystemMode = 'канікули';
-                systemModeMessage = parsed[r][c + 1] || '';
-                break;
-              } else if (cell.includes('сесія') || cell.includes('сессия')) {
-                currentSystemMode = 'сесія';
-                systemModeMessage = parsed[r][c + 1] || '';
-                break;
-              } else if (cell.includes('практика')) {
-                currentSystemMode = 'практика';
-                systemModeMessage = parsed[r][c + 1] || '';
-                break;
-              }
-            }
-            if (currentSystemMode !== 'навчання') break;
-          }
-
-          // 3. Зчитування налаштувань семестру (Рядок 2: E2, F2, G2 або за ключовими словами)
+          // Налаштування семестру: F2, G2, H2 (індекси 5, 6, 7)
           if (parsed.length > 1) {
-            const row2 = parsed[1];
-            // E2 (колонка index 4) - Семестр
-            if (row2[4]) semesterSettings.semester = row2[4].trim();
-            
-            // F2 (колонка index 5) - Дата початку
-            if (row2[5]) {
-              const pDate = parseCustomDate(row2[5]);
+            const r2 = parsed[1];
+            if (r2[5]) semesterSettings.semester = r2[5].trim();
+            if (r2[6]) {
+              const pDate = parseCustomDate(r2[6]);
               if (pDate) semesterSettings.startDate = pDate;
             }
-            
-            // G2 (колонка index 6) - День зміни тижня
-            if (row2[6]) semesterSettings.changeDay = row2[6].trim();
+            if (r2[7]) semesterSettings.changeDay = r2[7].trim();
           }
 
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
@@ -388,20 +368,22 @@
 
     async function applyModeAndFetch() {
       const controls = document.getElementById('schedule-controls');
+      const status = getCurrentGroupStatus();
+      const msg = getCurrentGroupMessage();
 
-      if (currentSystemMode === 'канікули') {
+      if (status === 'канікули') {
         if (controls) controls.classList.add('hidden');
-        renderVacationMode();
+        renderVacationMode(msg);
         return;
       }
 
-      if (currentSystemMode === 'практика') {
+      if (status === 'практика') {
         if (controls) controls.classList.add('hidden');
-        renderPracticeMode();
+        renderPracticeMode(msg);
         return;
       }
 
-      if (currentSystemMode === 'сесія') {
+      if (status === 'сесія') {
         if (controls) controls.classList.add('hidden');
         await fetchSessionSchedule(currentGroup);
         return;
@@ -411,7 +393,7 @@
       await fetchScheduleAndReplacements(currentGroup);
     }
 
-    function renderVacationMode() {
+    function renderVacationMode(msg) {
       const container = document.getElementById('schedule-container');
       container.innerHTML = `
         <div class="bg-gradient-to-br from-indigo-950/50 via-slate-800/80 to-blue-950/50 border border-blue-500/30 rounded-3xl p-8 text-center shadow-xl">
@@ -420,7 +402,7 @@
           </div>
           <h2 class="text-xl font-bold text-blue-200">Канікули!</h2>
           <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">
-            ${systemModeMessage || 'Наразі занять немає. Бажаємо гарного та продуктивного відпочинку!'}
+            ${msg || 'Наразі занять немає. Бажаємо гарного та продуктивного відпочинку!'}
           </p>
           <div class="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-400">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Сповіщення призупинено
@@ -429,7 +411,7 @@
       `;
     }
 
-    function renderPracticeMode() {
+    function renderPracticeMode(msg) {
       const container = document.getElementById('schedule-container');
       container.innerHTML = `
         <div class="bg-gradient-to-br from-amber-950/40 via-slate-800/90 to-orange-950/40 border border-amber-500/40 rounded-3xl p-6 sm:p-8 text-center shadow-xl">
@@ -444,7 +426,7 @@
           <h2 class="text-xl font-bold text-slate-100">Період практики</h2>
           
           <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">
-            ${systemModeMessage || 'Зараз триває навчально-виробнича практика. Академічні пари за розкладом призупинено.'}
+            ${msg || 'Зараз триває навчально-виробнича практика. Академічні пари за розкладом призупинено.'}
           </p>
 
           <div class="mt-6 pt-6 border-t border-slate-700/70 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
@@ -534,7 +516,6 @@
         </div>
       ` + sessionData.map(item => {
         const hasMeet = item.meet && item.meet.startsWith('http');
-        
         let typeBadge = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
         let typeIcon = 'fa-solid fa-comments';
         const tLower = item.type.toLowerCase();
@@ -1009,7 +990,7 @@
     }
 
     setInterval(() => {
-      if (currentSystemMode === 'навчання') renderSchedule();
+      if (getCurrentGroupStatus() === 'навчання') renderSchedule();
     }, 30000);
 
     renderDays();
