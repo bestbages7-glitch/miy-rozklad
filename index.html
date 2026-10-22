@@ -54,11 +54,16 @@
       </div>
       
       <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Кнопка кабінету старости -->
+        <button id="admin-auth-btn" title="Кабінет старости" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
+          <i class="fa-solid fa-key"></i>
+        </button>
+
         <button id="notify-btn" title="Увімкнути сповіщення" class="p-2 text-slate-400 hover:text-white bg-slate-700/60 rounded-lg transition-colors">
           <i class="fa-regular fa-bell"></i>
         </button>
 
-        <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[145px] sm:max-w-none">
+        <select id="group-select" class="bg-slate-700 border border-slate-600 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[130px] sm:max-w-none">
           <option>Завантаження...</option>
         </select>
 
@@ -71,7 +76,7 @@
 
   <main class="max-w-2xl mx-auto w-full p-4 flex-1 flex flex-col gap-4">
 
-    <!-- БЛОК: Оголошення -->
+    <!-- БЛОК: Оголошення старости -->
     <div id="announcement-card" class="hidden announcement-box bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border-l-4 border-amber-500 bg-slate-800/95 rounded-2xl p-4 shadow-lg">
       <div class="flex items-start justify-between gap-3">
         <div class="flex items-start gap-3">
@@ -86,10 +91,22 @@
             <p id="announcement-text" class="text-xs sm:text-sm text-slate-200 mt-1.5 whitespace-pre-wrap leading-relaxed"></p>
           </div>
         </div>
-        <button id="dismiss-announcement-btn" title="Приховати" class="text-slate-400 hover:text-slate-200 p-1 text-sm transition-colors">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1">
+          <button id="edit-announcement-btn" title="Редагувати оголошення" class="hidden text-amber-400 hover:text-amber-200 p-1 text-sm">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button id="dismiss-announcement-btn" title="Приховати" class="text-slate-400 hover:text-slate-200 p-1 text-sm">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
+    </div>
+
+    <!-- Кнопка створення оголошення (якщо його немає в шапці) -->
+    <div id="add-announcement-box" class="hidden">
+      <button onclick="openAnnouncementModal()" class="w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-700/80 border border-dashed border-amber-500/50 rounded-2xl text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 shadow-sm transition-all">
+        <i class="fa-solid fa-bullhorn"></i> Додати оголошення для групи
+      </button>
     </div>
 
     <!-- Банер встановлення PWA -->
@@ -127,12 +144,180 @@
     </div>
   </main>
 
+  <!-- МОДАЛЬНЕ ВІКНО 1: АВТОРИЗАЦІЯ СТАРОСТИ (ВВЕДЕННЯ PIN) -->
+  <div id="auth-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold text-blue-300 flex items-center gap-2">
+          <i class="fa-solid fa-user-shield"></i> Доступ старости
+        </h3>
+        <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-300 mb-4">Введіть PIN-код вашої групи для швидкого редагування розкладу та замін з телефону.</p>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400">Обрана група:</label>
+          <div id="auth-modal-group" class="text-sm font-bold text-white bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-700 mt-1"></div>
+        </div>
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400">4-значний PIN-код:</label>
+          <input type="password" id="auth-pin-input" maxlength="6" inputmode="numeric" placeholder="••••" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-3 py-2 text-center text-lg tracking-widest text-white focus:ring-2 focus:ring-blue-500 focus:outline-none mt-1">
+        </div>
+        <button id="save-pin-btn" onclick="saveEditorPin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2.5 rounded-xl shadow transition-all">
+          Увійти в кабінет
+        </button>
+        <button id="logout-pin-btn" onclick="logoutEditor()" class="w-full hidden bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-semibold text-xs py-2 rounded-xl transition-all">
+          Вийти з кабінету
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНЕ ВІКНО 2: ДОДАВАННЯ ТА РЕДАГУВАННЯ ПАРИ / ЗАМІНА -->
+  <div id="edit-pair-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700 mb-3">
+        <div>
+          <h3 id="modal-main-title" class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square text-blue-400"></i> Редагування пари
+          </h3>
+          <p id="modal-pair-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeEditModal()" class="text-slate-400 hover:text-white p-1 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <!-- Вибір дії -->
+        <div>
+          <label class="font-bold text-slate-300 block mb-1.5">Тип дії:</label>
+          <div class="grid grid-cols-3 gap-1.5 bg-slate-900 p-1 rounded-xl">
+            <button type="button" onclick="setModalMode('updatePair')" id="mode-update-btn" class="py-2 font-bold rounded-lg bg-blue-600 text-white shadow">
+              В розклад
+            </button>
+            <button type="button" onclick="setModalMode('addReplacement')" id="mode-replace-btn" class="py-2 font-bold rounded-lg text-slate-400 hover:text-white">
+              ⚡ Заміна
+            </button>
+            <button type="button" onclick="setModalMode('cancelPair')" id="mode-cancel-btn" class="py-2 font-bold rounded-lg text-slate-400 hover:text-white">
+              ❌ Скасувати
+            </button>
+          </div>
+        </div>
+
+        <!-- Вибір номера пари -->
+        <div id="modal-pair-number-box">
+          <label class="font-semibold text-slate-400 block mb-1">Номер пари:</label>
+          <div class="grid grid-cols-6 gap-1 bg-slate-900 p-1 rounded-xl" id="pair-num-selector">
+            <button type="button" onclick="selectPairNumber('1')" class="pair-num-btn py-1.5 font-bold rounded-lg bg-blue-600 text-white">1</button>
+            <button type="button" onclick="selectPairNumber('2')" class="pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white">2</button>
+            <button type="button" onclick="selectPairNumber('3')" class="pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white">3</button>
+            <button type="button" onclick="selectPairNumber('4')" class="pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white">4</button>
+            <button type="button" onclick="selectPairNumber('5')" class="pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white">5</button>
+            <button type="button" onclick="selectPairNumber('6')" class="pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white">6</button>
+          </div>
+        </div>
+
+        <!-- Регулярність тижня (Мигалка) -->
+        <div id="modal-week-selector-box">
+          <label class="font-semibold text-slate-400 block mb-1">Регулярність (Тиждень):</label>
+          <div class="grid grid-cols-3 gap-1.5 bg-slate-900 p-1 rounded-xl">
+            <button type="button" onclick="selectEditWeek('Всі')" id="edit-week-all-btn" class="py-1.5 font-semibold rounded-lg bg-blue-600 text-white shadow text-[11px]">
+              Всі (щотижня)
+            </button>
+            <button type="button" onclick="selectEditWeek('1')" id="edit-week-1-btn" class="py-1.5 font-semibold rounded-lg text-slate-400 hover:text-white text-[11px]">
+              I тиждень
+            </button>
+            <button type="button" onclick="selectEditWeek('2')" id="edit-week-2-btn" class="py-1.5 font-semibold rounded-lg text-slate-400 hover:text-white text-[11px]">
+              II тиждень
+            </button>
+          </div>
+        </div>
+
+        <!-- Поля вводу -->
+        <div id="modal-fields-container" class="space-y-3">
+          <div>
+            <label class="font-semibold text-slate-400 block mb-1">Назва предмета:</label>
+            <input type="text" id="modal-subject-input" placeholder="Введіть назву предмета вручну" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+
+          <div id="modal-teacher-box">
+            <label class="font-semibold text-slate-400 block mb-1">Викладач:</label>
+            <select id="modal-teacher-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <option value="">Оберіть зі списку або залиште порожнім</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2" id="modal-room-meet-box">
+            <div>
+              <label class="font-semibold text-slate-400 block mb-1">Аудиторія:</label>
+              <input type="text" id="modal-room-input" placeholder="Онлайн / ауд." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="font-semibold text-slate-400 block mb-1">Час пари:</label>
+              <input type="text" id="modal-time-input" placeholder="09:00 - 10:20" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+          </div>
+
+          <div id="modal-meet-container" class="hidden">
+            <label class="font-semibold text-slate-400 block mb-1">Новий Meet (для заміни):</label>
+            <input type="url" id="modal-meet-input" placeholder="https://meet.google.com/..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div id="modal-cancel-notice" class="hidden bg-rose-950/40 border border-rose-500/40 p-3 rounded-xl text-rose-200">
+          <p class="font-bold"><i class="fa-solid fa-ban mr-1"></i> Пара буде скасована на поточний день</p>
+          <p class="text-[11px] text-slate-400 mt-1">У журналі замін з'явиться запис про скасування заняття.</p>
+        </div>
+
+        <div class="pt-2">
+          <button id="modal-submit-btn" onclick="submitPairChanges()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Зберегти в розклад
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНЕ ВІКНО 3: ОГОЛОШЕННЯ СТАРОСТИ -->
+  <div id="announcement-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-amber-300 flex items-center gap-2">
+          <i class="fa-solid fa-bullhorn"></i> Оголошення старости
+        </h3>
+        <button onclick="closeAnnouncementModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-300 mb-3">Текст оголошення з'явиться вгорі розкладу у всіх одногрупників.</p>
+      
+      <textarea id="announcement-modal-input" rows="4" placeholder="Введіть текст важливого оголошення..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:ring-2 focus:ring-amber-500 focus:outline-none mb-3"></textarea>
+      
+      <div class="flex items-center gap-2">
+        <button onclick="submitAnnouncement(false)" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2.5 rounded-xl shadow transition-all">
+          Опублікувати
+        </button>
+        <button onclick="submitAnnouncement(true)" class="bg-slate-700 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 border border-slate-600 px-3 py-2.5 rounded-xl text-xs font-semibold">
+          Очистити
+        </button>
+      </div>
+    </div>
+  </div>
+
   <footer class="text-center py-4 text-xs text-slate-500 border-t border-slate-800">
     Синхронізовано з Google Таблицею • Хмарні сповіщення OneSignal
   </footer>
 
   <script>
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
+    const SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwJWs_29pvtektPYvYXj3JSYKlyoXHX3E_yf8dki2vE0MAi84XbohKTLdeGWulrFSRiLA/exec';
+
+    const DEFAULT_TIMES = {
+      '1': '09:00 - 10:20',
+      '2': '10:30 - 11:50',
+      '3': '12:10 - 13:30',
+      '4': '13:40 - 15:00',
+      '5': '15:10 - 16:30',
+      '6': '16:40 - 18:00'
+    };
 
     const DEFAULT_GROUPS = [
       'БС-5.203к', 'БС-5.201', 'БС-5.202к', 'БС-6.101', 'БС-6.102к',
@@ -158,8 +343,9 @@
       changeDay: "Вівторок"
     };
 
-    let groupStatusData = {}; // Карта { "БС-5.203к": { status: "навчання", msg: "..." } }
+    let groupStatusData = {};
     let GROUPS = [...DEFAULT_GROUPS];
+    let TEACHERS_LIST = [];
     let currentGroup = localStorage.getItem('selected_group') || 'БС-5.203к';
     let currentDay = getInitialDay();
     let currentWeek = 1;
@@ -168,6 +354,12 @@
     let replacementsData = {};
     let currentAnnouncement = null;
     let deferredPrompt;
+
+    let isCreatingNew = false;
+    let currentEditingItem = null;
+    let currentModalAction = 'updatePair';
+    let selectedEditWeek = 'Всі';
+    let selectedPairNum = '1';
 
     function getInitialDay() {
       const d = new Date().getDay();
@@ -203,7 +395,6 @@
     function calculateCurrentWeek() {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
-
       const start = new Date(semesterSettings.startDate);
       start.setHours(0, 0, 0, 0);
 
@@ -238,6 +429,23 @@
       return g ? g.msg : "";
     }
 
+    function isEditorAuthorized() {
+      const storedPin = localStorage.getItem(`pin_${currentGroup.toLowerCase()}`);
+      return Boolean(storedPin && storedPin.length >= 4);
+    }
+
+    function updateEditorUI() {
+      const isAuth = isEditorAuthorized();
+      const authBtn = document.getElementById('admin-auth-btn');
+      if (authBtn) {
+        authBtn.innerHTML = isAuth ? '<i class="fa-solid fa-user-check text-emerald-400"></i>' : '<i class="fa-solid fa-key"></i>';
+      }
+      const editAnnBtn = document.getElementById('edit-announcement-btn');
+      if (editAnnBtn) editAnnBtn.classList.toggle('hidden', !isAuth);
+      const addAnnBox = document.getElementById('add-announcement-box');
+      if (addAnnBox) addAnnBox.classList.toggle('hidden', !isAuth || (currentAnnouncement && currentAnnouncement.text));
+    }
+
     function isPairCurrent(item) {
       if (getCurrentGroupStatus() !== 'навчання') return false;
 
@@ -245,9 +453,7 @@
       const realTodayMap = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
       const realTodayId = realTodayMap[dayIndex];
       
-      if (currentDay !== realTodayId || item.day.toLowerCase() !== realTodayId.toLowerCase()) {
-        return false;
-      }
+      if (currentDay !== realTodayId || item.day.toLowerCase() !== realTodayId.toLowerCase()) return false;
 
       const realWeek = calculateCurrentWeek();
       if (currentWeek !== realWeek) return false;
@@ -260,10 +466,8 @@
       try {
         const parts = normalizedTime.split('-').map(t => t.trim());
         if (parts.length !== 2) return false;
-
         const [startH, startM] = parts[0].split(':').map(Number);
         const [endH, endM] = parts[1].split(':').map(Number);
-
         if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return false;
 
         const now = new Date();
@@ -274,7 +478,25 @@
       }
     }
 
-    // ЗЧИТУВАННЯ ГРУП, ІНДИВІДУАЛЬНИХ СТАТУСІВ ТА ПАРАМЕТРІВ СЕМЕСТРУ
+    async function fetchTeachersList() {
+      if (SCRIPT_WEB_APP_URL.includes('placeholder')) return;
+      try {
+        const res = await fetch(SCRIPT_WEB_APP_URL);
+        const data = await res.json();
+        if (data && data.teachers) {
+          TEACHERS_LIST = data.teachers;
+          populateTeacherSelect();
+        }
+      } catch (e) {}
+    }
+
+    function populateTeacherSelect() {
+      const select = document.getElementById('modal-teacher-select');
+      if (!select) return;
+      select.innerHTML = '<option value="">Оберіть зі списку або залиште порожнім</option>' + 
+        TEACHERS_LIST.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
@@ -287,12 +509,11 @@
           const parsedGroups = [];
           groupStatusData = {};
 
-          parsed.forEach((cols, idx) => {
+          parsed.forEach((cols) => {
             if (cols[0]) {
               const val = cols[0].trim();
               if (val.length > 0 && val.toLowerCase() !== 'назва групи' && val.toLowerCase() !== 'групи') {
                 parsedGroups.push(val);
-                // Зчитуємо стовпчик B (статус) та C (повідомлення)
                 const status = cols[1] ? cols[1].trim().toLowerCase() : "навчання";
                 const msg = cols[2] ? cols[2].trim() : "";
                 groupStatusData[val.toLowerCase()] = { status: status || "навчання", msg: msg };
@@ -300,7 +521,6 @@
             }
           });
 
-          // Налаштування семестру: F2, G2, H2 (індекси 5, 6, 7)
           if (parsed.length > 1) {
             const r2 = parsed[1];
             if (r2[5]) semesterSettings.semester = r2[5].trim();
@@ -313,9 +533,7 @@
 
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
         }
-      } catch (e) {
-        console.warn("Помилка завантаження аркуша груп:", e);
-      }
+      } catch (e) {}
 
       currentWeek = calculateCurrentWeek();
       setWeek(currentWeek);
@@ -333,6 +551,7 @@
       select.innerHTML = GROUPS.map(g => `<option value="${g}" ${g === currentGroup ? 'selected' : ''}>${g}</option>`).join('');
 
       updateManifest(currentGroup);
+      updateEditorUI();
       applyModeAndFetch();
     }
 
@@ -360,8 +579,7 @@
           purpose: "any maskable"
         }]
       };
-      const stringManifest = JSON.stringify(manifest);
-      const blob = new Blob([stringManifest], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
       const manifestElem = document.getElementById('manifest-placeholder');
       if (manifestElem) manifestElem.setAttribute('href', URL.createObjectURL(blob));
     }
@@ -401,14 +619,8 @@
             <i class="fa-solid fa-umbrella-beach"></i>
           </div>
           <h2 class="text-xl font-bold text-blue-200">Канікули!</h2>
-          <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">
-            ${msg || 'Наразі занять немає. Бажаємо гарного та продуктивного відпочинку!'}
-          </p>
-          <div class="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-400">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Сповіщення призупинено
-          </div>
-        </div>
-      `;
+          <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">${msg || 'Наразі занять немає. Відпочивайте!'}</p>
+        </div>`;
     }
 
     function renderPracticeMode(msg) {
@@ -418,183 +630,82 @@
           <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto text-3xl mb-4 shadow-inner">
             <i class="fa-solid fa-helmet-safety"></i>
           </div>
-          
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 mb-3">
-            Виробниче навчання та практика
-          </span>
-          
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 mb-3">Виробниче навчання та практика</span>
           <h2 class="text-xl font-bold text-slate-100">Період практики</h2>
-          
-          <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">
-            ${msg || 'Зараз триває навчально-виробнича практика. Академічні пари за розкладом призупинено.'}
-          </p>
-
-          <div class="mt-6 pt-6 border-t border-slate-700/70 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-            <div class="bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/60 flex items-start gap-3">
-              <i class="fa-solid fa-book-open text-amber-400 mt-0.5"></i>
-              <div class="text-xs">
-                <p class="font-semibold text-slate-200">Щоденник практики</p>
-                <p class="text-slate-400 mt-0.5">Своєчасно заповнюйте щоденник та звіти про виконані роботи.</p>
-              </div>
-            </div>
-
-            <div class="bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/60 flex items-start gap-3">
-              <i class="fa-solid fa-bell-slash text-slate-400 mt-0.5"></i>
-              <div class="text-xs">
-                <p class="font-semibold text-slate-200">Сповіщення вимкнено</p>
-                <p class="text-slate-400 mt-0.5">Щоденні нагадування про пари призупинено на період практики.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+          <p class="text-sm text-slate-300 mt-2.5 leading-relaxed max-w-md mx-auto whitespace-pre-wrap">${msg || 'Триває навчально-виробнича практика.'}</p>
+        </div>`;
     }
 
     async function fetchSessionSchedule(group) {
       const container = document.getElementById('schedule-container');
-      container.innerHTML = `
-        <div class="text-center py-12 text-slate-500">
-          <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
-          <p>Завантаження розкладу сесії для ${group}...</p>
-        </div>`;
+      container.innerHTML = `<div class="text-center py-12 text-slate-500"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i><p>Завантаження сесії...</p></div>`;
 
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Сесія')}&t=${Date.now()}`;
-      
       try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Аркуш 'Сесія' не знайдено");
+        if (!res.ok) throw new Error();
         const text = await res.text();
         const rows = parseCsvSafe(text);
-
         sessionData = [];
         for (let i = 1; i < rows.length; i++) {
           const cols = rows[i];
-          if (cols.length >= 5) {
-            const grp = cols[1].trim();
-            if (grp.toLowerCase() === group.toLowerCase()) {
-              sessionData.push({
-                date: cols[0].trim(),
-                time: cols[2].trim(),
-                type: cols[3].trim(),
-                subject: cols[4].trim(),
-                teacher: cols[5] ? cols[5].trim() : '',
-                meet: cols[6] ? cols[6].trim() : '',
-                room: cols[7] ? cols[7].trim() : ''
-              });
-            }
+          if (cols.length >= 5 && cols[1].trim().toLowerCase() === group.toLowerCase()) {
+            sessionData.push({
+              date: cols[0].trim(),
+              time: cols[2].trim(),
+              type: cols[3].trim(),
+              subject: cols[4].trim(),
+              teacher: cols[5] ? cols[5].trim() : '',
+              meet: cols[6] ? cols[6].trim() : '',
+              room: cols[7] ? cols[7].trim() : ''
+            });
           }
         }
-
         renderSessionTimeline();
       } catch (e) {
-        container.innerHTML = `
-          <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-6 text-center text-slate-400">
-            <i class="fa-solid fa-calendar-xmark text-3xl mb-2 text-slate-500"></i>
-            <p class="font-medium text-slate-200">Розклад сесії поки відсутній</p>
-            <p class="text-xs mt-1">Для вашої групи ще не внесено іспитів на аркуші «Сесія».</p>
-          </div>`;
+        container.innerHTML = `<div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-6 text-center text-slate-400">Розклад сесії поки відсутній</div>`;
       }
     }
 
     function renderSessionTimeline() {
       const container = document.getElementById('schedule-container');
-
       if (sessionData.length === 0) {
-        container.innerHTML = `
-          <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-6 text-center text-slate-400">
-            <i class="fa-solid fa-check-double text-3xl mb-2 text-emerald-400"></i>
-            <p class="font-semibold text-slate-200">Усі заліки та іспити складено!</p>
-            <p class="text-xs mt-1">Подій у розкладі сесії для цієї групи немає.</p>
-          </div>`;
+        container.innerHTML = `<div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-6 text-center text-slate-400">Подій у розкладі сесії немає.</div>`;
         return;
       }
-
-      container.innerHTML = `
-        <div class="mb-2 px-1 flex items-center justify-between text-xs text-amber-300 font-semibold">
-          <span><i class="fa-solid fa-book-bookmark mr-1.5"></i> Екзаменаційна сесія</span>
-          <span class="text-slate-400 font-normal">Усього подій: ${sessionData.length}</span>
-        </div>
-      ` + sessionData.map(item => {
-        const hasMeet = item.meet && item.meet.startsWith('http');
-        let typeBadge = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
-        let typeIcon = 'fa-solid fa-comments';
-        const tLower = item.type.toLowerCase();
-
-        if (tLower.includes('екзамен') || tLower.includes('іспит')) {
-          typeBadge = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
-          typeIcon = 'fa-solid fa-file-signature';
-        } else if (tLower.includes('залік')) {
-          typeBadge = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-          typeIcon = 'fa-solid fa-square-check';
-        }
-
-        return `
-          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-sm hover:border-slate-600 transition-all">
-            <div class="flex items-center justify-between text-xs mb-2.5">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold border ${typeBadge}">
-                <i class="${typeIcon}"></i> ${item.type}
-              </span>
-              <div class="flex items-center gap-2 font-mono text-slate-300">
-                <span class="bg-slate-700/60 px-2 py-0.5 rounded-md font-bold text-blue-300">${item.date}</span>
-                <span><i class="fa-regular fa-clock mr-1"></i>${item.time}</span>
-              </div>
-            </div>
-
-            <div class="mb-3">
-              <h3 class="text-base font-bold text-slate-100">${item.subject}</h3>
-              <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 mt-1.5">
-                ${item.teacher ? `<span><i class="fa-solid fa-user-tie text-slate-500 mr-1"></i>${item.teacher}</span>` : ''}
-                ${item.room ? `<span><i class="fa-solid fa-location-dot text-slate-500 mr-1"></i>${item.room}</span>` : ''}
-              </div>
-            </div>
-
-            ${hasMeet ? `
-              <a href="${item.meet}" target="_blank" rel="noopener noreferrer" 
-                 class="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-white font-medium text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm">
-                <i class="fa-solid fa-video"></i> Увійти в Google Meet
-              </a>` : ''
-            }
+      container.innerHTML = sessionData.map(item => `
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-sm">
+          <div class="flex items-center justify-between text-xs mb-2">
+            <span class="px-2 py-0.5 rounded-full font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">${item.type}</span>
+            <span class="font-mono text-slate-300">${item.date} • ${item.time}</span>
           </div>
-        `;
-      }).join('');
+          <h3 class="text-base font-bold text-slate-100">${item.subject}</h3>
+          <p class="text-xs text-slate-400 mt-1">${item.teacher} ${item.room ? `(${item.room})` : ''}</p>
+        </div>
+      `).join('');
     }
 
     async function fetchScheduleAndReplacements(group) {
       const container = document.getElementById('schedule-container');
-      container.innerHTML = `
-        <div class="text-center py-12 text-slate-500">
-          <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
-          <p>Оновлення розкладу для ${group}...</p>
-        </div>`;
+      container.innerHTML = `<div class="text-center py-12 text-slate-500"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i><p>Оновлення розкладу...</p></div>`;
 
       replacementsData = {};
 
       const replUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Заміни')}&t=${Date.now()}`;
       try {
         const replRes = await fetch(replUrl);
-        if (replRes.ok) {
-          const replCsv = await replRes.text();
-          parseReplacementsCSV(replCsv, group);
-        }
-      } catch (e) {
-        console.warn("Аркуш замін недоступний:", e);
-      }
+        if (replRes.ok) parseReplacementsCSV(await replRes.text(), group);
+      } catch (e) {}
 
       const schedUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(group)}&t=${Date.now()}`;
       try {
         const res = await fetch(schedUrl);
-        if (!res.ok) throw new Error("Помилка завантаження");
-        const text = await res.text();
-        scheduleData = parseAdaptiveCSV(text);
+        if (!res.ok) throw new Error();
+        scheduleData = parseAdaptiveCSV(await res.text());
         renderAnnouncement();
         renderSchedule();
       } catch (err) {
-        container.innerHTML = `
-          <div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center">
-            <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl mb-2"></i>
-            <p class="text-sm font-medium text-red-200">Помилка завантаження розкладу для "${group}"</p>
-            <p class="text-xs text-red-300 mt-1">Перевірте назву аркуша в Google Таблиці.</p>
-          </div>`;
+        container.innerHTML = `<div class="bg-red-950/40 border border-red-500/30 p-4 rounded-xl text-center text-red-200">Помилка завантаження розкладу.</div>`;
       }
     }
 
@@ -668,9 +779,7 @@
       for (let i = 0; i < parsedRows.length; i++) {
         const row = parsedRows[i];
         if (row[0] && row[0].toLowerCase().includes('оголошення')) {
-          if (parsedRows[i + 1] && parsedRows[i + 1][0]) {
-            msgText = parsedRows[i + 1][0];
-          }
+          if (parsedRows[i + 1] && parsedRows[i + 1][0]) msgText = parsedRows[i + 1][0];
           const datePart = (parsedRows[i + 1] && parsedRows[i + 1][1]) ? parsedRows[i + 1][1] : '';
           const timePart = (parsedRows[i + 2] && parsedRows[i + 2][1]) ? parsedRows[i + 2][1] : '';
           msgDate = [datePart, timePart].filter(Boolean).join(' ');
@@ -738,17 +847,17 @@
       } else {
         card.classList.add('hidden');
       }
+      updateEditorUI();
     }
 
     const dismissBtn = document.getElementById('dismiss-announcement-btn');
     if (dismissBtn) {
-      dismissBtn.onclick = () => {
-        document.getElementById('announcement-card').classList.add('hidden');
-      };
+      dismissBtn.onclick = () => document.getElementById('announcement-card').classList.add('hidden');
     }
 
     function renderSchedule() {
       const container = document.getElementById('schedule-container');
+      const isAuth = isEditorAuthorized();
 
       const now = new Date();
       const currentDayOfWeek = now.getDay() || 7;
@@ -766,13 +875,21 @@
         return matchDay && matchWeek;
       }).sort((a, b) => parseInt(a.num) - parseInt(b.num));
 
+      const addPairBtnHtml = isAuth ? `
+        <button onclick="openAddNewPairModal('${targetDateIso}')" class="w-full py-3 px-4 bg-slate-800/80 hover:bg-slate-700/80 border border-dashed border-blue-500/50 rounded-2xl text-xs font-bold text-blue-300 flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] mt-2">
+          <i class="fa-solid fa-plus-circle text-base text-blue-400"></i> Додати нову пару на ${currentDay}
+        </button>
+      ` : '';
+
       if (filtered.length === 0) {
         container.innerHTML = `
           <div class="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-8 text-center text-slate-400">
             <i class="fa-solid fa-mug-hot text-3xl mb-3 text-slate-500"></i>
             <p class="text-base font-semibold text-slate-300">Пар немає!</p>
-            <p class="text-xs mt-1">На цей день занять не заплановано або у вас вихідний.</p>
-          </div>`;
+            <p class="text-xs mt-1">На цей день занять не заплановано або розклад ще не заповнено.</p>
+          </div>
+          ${addPairBtnHtml}
+        `;
         return;
       }
 
@@ -797,6 +914,8 @@
           cardBorder = 'active-pair-card border-2 ring-1 ring-emerald-500/50';
         }
 
+        const itemJson = encodeURIComponent(JSON.stringify(item));
+
         return `
           <div class="bg-slate-800 border ${cardBorder} rounded-2xl p-4 shadow-sm transition-all relative">
             <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
@@ -804,6 +923,12 @@
                 <span class="${isCurrent ? 'bg-emerald-600 text-white' : (isReplaced ? 'bg-amber-600 text-white' : 'bg-slate-700/80 text-blue-300')} font-bold px-2 py-0.5 rounded-md">
                   ${item.num} пара
                 </span>
+
+                ${item.week && item.week !== 'Всі' ? `
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                    ${item.week === '1' ? 'I тижд.' : 'II тижд.'}
+                  </span>
+                ` : ''}
 
                 ${isCancelled ? `
                   <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
@@ -824,9 +949,17 @@
                 ` : ''}
               </div>
 
-              <span class="font-mono ${isCancelled ? 'line-through text-slate-500' : (isCurrent ? 'text-emerald-300 font-bold' : 'text-slate-300')}">
-                <i class="fa-regular fa-clock mr-1"></i>${item.time}
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="font-mono ${isCancelled ? 'line-through text-slate-500' : (isCurrent ? 'text-emerald-300 font-bold' : 'text-slate-300')}">
+                  <i class="fa-regular fa-clock mr-1"></i>${item.time}
+                </span>
+
+                ${isAuth ? `
+                  <button onclick="openEditModal('${itemJson}', '${targetDateIso}')" title="Редагувати / Заміна" class="text-blue-400 hover:text-white bg-slate-700/60 p-1.5 rounded-lg text-xs transition-colors">
+                    <i class="fa-solid fa-pen"></i>
+                  </button>
+                ` : ''}
+              </div>
             </div>
 
             <div class="mb-3">
@@ -866,7 +999,7 @@
             }
           </div>
         `;
-      }).join('');
+      }).join('') + addPairBtnHtml;
     }
 
     function renderDays() {
@@ -902,6 +1035,293 @@
       renderSchedule();
     }
 
+    // ==========================================
+    // ЛОГІКА МОДАЛЬНИХ ВІКОН ТА РЕДАКТОРА
+    // ==========================================
+
+    function openAuthModal() {
+      document.getElementById('auth-modal-group').textContent = currentGroup;
+      const stored = localStorage.getItem(`pin_${currentGroup.toLowerCase()}`) || '';
+      document.getElementById('auth-pin-input').value = stored;
+      document.getElementById('logout-pin-btn').classList.toggle('hidden', !stored);
+      document.getElementById('auth-modal').classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+    }
+
+    function saveEditorPin() {
+      const pin = document.getElementById('auth-pin-input').value.trim();
+      if (!pin) {
+        alert("Введіть PIN-код!");
+        return;
+      }
+      localStorage.setItem(`pin_${currentGroup.toLowerCase()}`, pin);
+      closeAuthModal();
+      updateEditorUI();
+      renderSchedule();
+      alert("PIN збережено! Тепер вам доступне створення та редагування пар.");
+    }
+
+    function logoutEditor() {
+      localStorage.removeItem(`pin_${currentGroup.toLowerCase()}`);
+      closeAuthModal();
+      updateEditorUI();
+      renderSchedule();
+    }
+
+    function selectPairNumber(num) {
+      selectedPairNum = num;
+      document.querySelectorAll('.pair-num-btn').forEach((btn, idx) => {
+        if (String(idx + 1) === String(num)) {
+          btn.className = "pair-num-btn py-1.5 font-bold rounded-lg bg-blue-600 text-white";
+        } else {
+          btn.className = "pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white";
+        }
+      });
+      if (DEFAULT_TIMES[num]) {
+        document.getElementById('modal-time-input').value = DEFAULT_TIMES[num];
+      }
+    }
+
+    function selectEditWeek(w) {
+      selectedEditWeek = w;
+      const bAll = document.getElementById('edit-week-all-btn');
+      const b1 = document.getElementById('edit-week-1-btn');
+      const b2 = document.getElementById('edit-week-2-btn');
+
+      [bAll, b1, b2].forEach(b => {
+        if (b) b.className = "py-1.5 font-semibold rounded-lg text-slate-400 hover:text-white text-[11px]";
+      });
+
+      if (w === 'Всі' && bAll) bAll.className = "py-1.5 font-semibold rounded-lg bg-blue-600 text-white shadow text-[11px]";
+      if (w === '1' && b1) b1.className = "py-1.5 font-semibold rounded-lg bg-blue-600 text-white shadow text-[11px]";
+      if (w === '2' && b2) b2.className = "py-1.5 font-semibold rounded-lg bg-blue-600 text-white shadow text-[11px]";
+    }
+
+    function openAddNewPairModal(dateIso) {
+      isCreatingNew = true;
+      currentEditingItem = {
+        day: currentDay,
+        num: '1',
+        week: 'Всі',
+        time: DEFAULT_TIMES['1'],
+        targetDateIso: dateIso
+      };
+
+      document.getElementById('modal-main-title').innerHTML = '<i class="fa-solid fa-plus-circle text-blue-400"></i> Додати пару в розклад';
+      document.getElementById('modal-pair-subtitle').textContent = `День: ${currentDay} (${currentGroup})`;
+      
+      document.getElementById('modal-pair-number-box').classList.remove('hidden');
+      selectPairNumber('1');
+      selectEditWeek('Всі');
+
+      document.getElementById('modal-subject-input').value = '';
+      document.getElementById('modal-room-input').value = 'Онлайн';
+      document.getElementById('modal-time-input').value = DEFAULT_TIMES['1'];
+      document.getElementById('modal-meet-input').value = '';
+
+      const tSelect = document.getElementById('modal-teacher-select');
+      if (tSelect) tSelect.value = '';
+
+      setModalMode('updatePair');
+      document.getElementById('edit-pair-modal').classList.remove('hidden');
+    }
+
+    function openEditModal(itemJson, dateIso) {
+      isCreatingNew = false;
+      currentEditingItem = JSON.parse(decodeURIComponent(itemJson));
+      currentEditingItem.targetDateIso = dateIso;
+
+      document.getElementById('modal-main-title').innerHTML = '<i class="fa-solid fa-pen-to-square text-blue-400"></i> Редагування пари';
+      document.getElementById('modal-pair-subtitle').textContent = `${currentEditingItem.day}, ${currentEditingItem.num} пара (${currentEditingItem.time})`;
+
+      document.getElementById('modal-pair-number-box').classList.add('hidden');
+      selectedPairNum = currentEditingItem.num;
+
+      document.getElementById('modal-subject-input').value = currentEditingItem.subject || '';
+      document.getElementById('modal-room-input').value = currentEditingItem.room || '';
+      document.getElementById('modal-time-input').value = currentEditingItem.time || DEFAULT_TIMES[currentEditingItem.num] || '';
+      document.getElementById('modal-meet-input').value = '';
+
+      const tSelect = document.getElementById('modal-teacher-select');
+      if (tSelect) tSelect.value = currentEditingItem.teacher || '';
+
+      const itemW = (currentEditingItem.week && currentEditingItem.week !== '') ? currentEditingItem.week : 'Всі';
+      selectEditWeek(itemW);
+
+      setModalMode('updatePair');
+      document.getElementById('edit-pair-modal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-pair-modal').classList.add('hidden');
+    }
+
+    function setModalMode(mode) {
+      currentModalAction = mode;
+      const bUpdate = document.getElementById('mode-update-btn');
+      const bReplace = document.getElementById('mode-replace-btn');
+      const bCancel = document.getElementById('mode-cancel-btn');
+      const fContainer = document.getElementById('modal-fields-container');
+      const cNotice = document.getElementById('modal-cancel-notice');
+      const mContainer = document.getElementById('modal-meet-container');
+      const wSelector = document.getElementById('modal-week-selector-box');
+      const pNumBox = document.getElementById('modal-pair-number-box');
+      const sBtn = document.getElementById('modal-submit-btn');
+
+      [bUpdate, bReplace, bCancel].forEach(b => b.className = "py-2 font-bold rounded-lg text-slate-400 hover:text-white");
+
+      if (mode === 'updatePair') {
+        bUpdate.className = "py-2 font-bold rounded-lg bg-blue-600 text-white shadow";
+        fContainer.classList.remove('hidden');
+        cNotice.classList.add('hidden');
+        mContainer.classList.add('hidden');
+        wSelector.classList.remove('hidden');
+        if (isCreatingNew) pNumBox.classList.remove('hidden');
+        sBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
+        sBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Зберегти в розклад';
+      } else if (mode === 'addReplacement') {
+        bReplace.className = "py-2 font-bold rounded-lg bg-amber-600 text-white shadow";
+        fContainer.classList.remove('hidden');
+        cNotice.classList.add('hidden');
+        mContainer.classList.remove('hidden');
+        wSelector.classList.add('hidden');
+        pNumBox.classList.add('hidden');
+        sBtn.className = "w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
+        sBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Встановити заміну на цей день';
+      } else if (mode === 'cancelPair') {
+        bCancel.className = "py-2 font-bold rounded-lg bg-rose-600 text-white shadow";
+        fContainer.classList.add('hidden');
+        cNotice.classList.remove('hidden');
+        wSelector.classList.add('hidden');
+        pNumBox.classList.add('hidden');
+        sBtn.className = "w-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
+        sBtn.innerHTML = '<i class="fa-solid fa-ban"></i> Підтвердити скасування пари';
+      }
+    }
+
+    async function submitPairChanges() {
+      if (SCRIPT_WEB_APP_URL.includes('placeholder')) {
+        alert("Будь ласка, вставте URL вашого розгорнутого Web App у змінну SCRIPT_WEB_APP_URL в index.html!");
+        return;
+      }
+
+      const pin = localStorage.getItem(`pin_${currentGroup.toLowerCase()}`);
+      if (!pin) {
+        alert("Не знайдено збереженого PIN-коду! Увійдіть знову.");
+        openAuthModal();
+        return;
+      }
+
+      const submitBtn = document.getElementById('modal-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Збереження...';
+
+      const pairNum = isCreatingNew ? selectedPairNum : currentEditingItem.num;
+
+      const payload = {
+        group: currentGroup,
+        pin: pin,
+        day: currentEditingItem.day,
+        num: pairNum,
+        time: document.getElementById('modal-time-input').value.trim() || DEFAULT_TIMES[pairNum]
+      };
+
+      if (currentModalAction === 'updatePair') {
+        payload.action = 'updatePair';
+        payload.targetWeek = selectedEditWeek;
+        payload.subject = document.getElementById('modal-subject-input').value.trim();
+        payload.teacher = document.getElementById('modal-teacher-select').value.trim();
+        payload.room = document.getElementById('modal-room-input').value.trim();
+      } else if (currentModalAction === 'addReplacement') {
+        payload.action = 'addReplacement';
+        payload.date = currentEditingItem.targetDateIso;
+        payload.status = 'Заміна';
+        payload.subject = document.getElementById('modal-subject-input').value.trim();
+        payload.teacher = document.getElementById('modal-teacher-select').value.trim();
+        payload.room = document.getElementById('modal-room-input').value.trim();
+        payload.meet = document.getElementById('modal-meet-input').value.trim();
+      } else if (currentModalAction === 'cancelPair') {
+        payload.action = 'addReplacement';
+        payload.date = currentEditingItem.targetDateIso;
+        payload.status = 'Скасовано';
+        payload.subject = currentEditingItem.subject || '';
+      }
+
+      try {
+        const res = await fetch(SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          alert(result.message || "Успішно збережено!");
+          closeEditModal();
+          fetchScheduleAndReplacements(currentGroup);
+        } else {
+          alert("Помилка: " + (result.error || "Не вдалося виконати дію"));
+        }
+      } catch (e) {
+        alert("Помилка зв'язку з сервером: " + e.toString());
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function openAnnouncementModal() {
+      const input = document.getElementById('announcement-modal-input');
+      input.value = currentAnnouncement ? currentAnnouncement.text : '';
+      document.getElementById('announcement-modal').classList.remove('hidden');
+    }
+
+    function closeAnnouncementModal() {
+      document.getElementById('announcement-modal').classList.add('hidden');
+    }
+
+    async function submitAnnouncement(isClear) {
+      if (SCRIPT_WEB_APP_URL.includes('placeholder')) {
+        alert("Вкажіть SCRIPT_WEB_APP_URL в коді!");
+        return;
+      }
+      const pin = localStorage.getItem(`pin_${currentGroup.toLowerCase()}`);
+      if (!pin) {
+        alert("Увійдіть у кабінет старости через PIN!");
+        openAuthModal();
+        return;
+      }
+
+      const text = isClear ? '' : document.getElementById('announcement-modal-input').value.trim();
+      if (!isClear && !text) {
+        alert("Введіть текст повідомлення або натисніть 'Очистити'");
+        return;
+      }
+
+      try {
+        const res = await fetch(SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'setAnnouncement',
+            group: currentGroup,
+            pin: pin,
+            text: text
+          })
+        });
+        const r = await res.json();
+        if (r.success) {
+          alert(isClear ? "Оголошення видалено!" : "Оголошення успішно опубліковано!");
+          closeAnnouncementModal();
+          fetchScheduleAndReplacements(currentGroup);
+        } else {
+          alert("Помилка: " + r.error);
+        }
+      } catch (e) {
+        alert("Помилка: " + e.toString());
+      }
+    }
+
     const notifyBtn = document.getElementById('notify-btn');
     function checkBellState() {
       if (!notifyBtn) return;
@@ -928,9 +1348,7 @@
             } else if (OneSignal.Slidedown) {
               await OneSignal.Slidedown.promptPush();
             }
-          } catch (e) {
-            console.warn("OneSignal fallback:", e);
-          }
+          } catch (e) {}
         }
 
         if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
@@ -943,7 +1361,6 @@
             OneSignal.User.addTag("group", currentGroup);
           });
         }
-
         checkBellState();
       });
     }
@@ -955,6 +1372,7 @@
         localStorage.setItem('selected_group', currentGroup);
         if (window.OneSignal) OneSignal.User.addTag("group", currentGroup);
         updateManifest(currentGroup);
+        updateEditorUI();
         applyModeAndFetch();
       });
     }
@@ -967,6 +1385,12 @@
 
     const refBtn = document.getElementById('refresh-btn');
     if (refBtn) refBtn.onclick = () => loadGroupsAndMode();
+
+    const authBtn = document.getElementById('admin-auth-btn');
+    if (authBtn) authBtn.onclick = () => openAuthModal();
+
+    const editAnnBtn = document.getElementById('edit-announcement-btn');
+    if (editAnnBtn) editAnnBtn.onclick = () => openAnnouncementModal();
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -996,6 +1420,7 @@
     renderDays();
     checkBellState();
     loadGroupsAndMode();
+    fetchTeachersList();
   </script>
 </body>
 </html>
