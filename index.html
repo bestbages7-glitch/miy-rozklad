@@ -133,7 +133,6 @@
 
   <script>
     const SHEET_ID = '1igLEwYbzJ_ucINolekByzD_wL7pAnU-nDCbSiUciSMA';
-    const SEMESTER_START_DATE = '2026-09-01T00:00:00';
 
     const DEFAULT_GROUPS = [
       'БС-5.203к', 'БС-5.201', 'БС-5.202к', 'БС-6.101', 'БС-6.102к',
@@ -153,12 +152,19 @@
       { id: 'Пт', name: "П'ятниця" }
     ];
 
+    // Динамічні налаштування семестру (завантажуються з аркуша "Групи")
+    let semesterSettings = {
+      semester: "1",
+      startDate: new Date('2026-09-01T00:00:00'),
+      changeDay: "Вівторок"
+    };
+
     let currentSystemMode = "навчання";
     let systemModeMessage = "";
     let GROUPS = [...DEFAULT_GROUPS];
     let currentGroup = localStorage.getItem('selected_group') || 'БС-5.203к';
     let currentDay = getInitialDay();
-    let currentWeek = getInitialWeek();
+    let currentWeek = 1;
     let scheduleData = [];
     let sessionData = [];
     let replacementsData = {};
@@ -170,14 +176,61 @@
       return (d >= 1 && d <= 5) ? DAYS[d - 1].id : 'Пн';
     }
 
-    function getInitialWeek() {
-      const semesterStart = new Date(SEMESTER_START_DATE);
-      const now = new Date();
-      if (now < semesterStart) return 1;
+    function parseWeekdayNameToIndex(name) {
+      if (!name) return 0;
+      const n = String(name).trim().toLowerCase();
+      if (n.startsWith('вт')) return 1;
+      if (n.startsWith('ср')) return 2;
+      if (n.startsWith('чт')) return 3;
+      if (n.startsWith('пт')) return 4;
+      if (n.startsWith('сб')) return 5;
+      if (n.startsWith('нд')) return 6;
+      return 0; // Понеділок (0)
+    }
 
-      const diffInDays = Math.floor((now - semesterStart) / (1000 * 60 * 60 * 24));
-      const weekNumber = Math.floor(diffInDays / 7) + 1;
-      return (weekNumber % 2 === 0) ? 2 : 1;
+    function parseCustomDate(val) {
+      if (!val) return null;
+      const str = String(val).trim();
+      if (str.includes('.')) {
+        const p = str.split('.');
+        if (p.length === 3) return new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+      }
+      if (str.includes('-')) {
+        const p = str.split('-');
+        if (p.length === 3) return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      }
+      return null;
+    }
+
+    // 🚀 ГНУЧКИЙ РОЗРАХУНОК НОМЕРА ТИЖНЯ (ЧИСЕЛЬНИК / ЗНАМЕННИК)
+    function calculateCurrentWeek() {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      const start = new Date(semesterSettings.startDate);
+      start.setHours(0, 0, 0, 0);
+
+      if (now < start) return 1;
+
+      const startDayIdx = (start.getDay() + 6) % 7;
+      const changeDayIdx = parseWeekdayNameToIndex(semesterSettings.changeDay);
+
+      let daysToFirstRollover = (changeDayIdx - startDayIdx) % 7;
+      if (daysToFirstRollover <= 0) {
+        daysToFirstRollover += 7;
+      }
+
+      const firstRollover = new Date(start);
+      firstRollover.setDate(start.getDate() + daysToFirstRollover);
+
+      if (now < firstRollover) {
+        return 1;
+      } else {
+        const diffDays = Math.floor((now - firstRollover) / (1000 * 60 * 60 * 24));
+        const cycle = Math.floor(diffDays / 7);
+        const weekNum = 2 + cycle;
+        return (weekNum % 2 === 0) ? 2 : 1;
+      }
     }
 
     function isPairCurrent(item) {
@@ -191,7 +244,7 @@
         return false;
       }
 
-      const realWeek = getInitialWeek();
+      const realWeek = calculateCurrentWeek();
       if (currentWeek !== realWeek) return false;
       if (item.week && item.week !== 'Всі' && item.week != realWeek) return false;
 
@@ -216,7 +269,7 @@
       }
     }
 
-    // НАДІЙНИЙ ПАРСИНГ ГРУП ТА РЕЖИМУ (СКАНУВАННЯ ВЕРХНЬОЇ ШАПКИ АРКУША)
+    // НАДІЙНИЙ ПАРСИНГ ГРУП, РЕЖИМУ ТА НАЛАШТУВАНЬ СЕМЕСТРУ
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
@@ -228,7 +281,7 @@
           const parsed = parseCsvSafe(text);
           const parsedGroups = [];
 
-          // 1. Зчитуємо назви груп із першої колонки
+          // 1. Групи з колонки A
           parsed.forEach(cols => {
             if (cols[0]) {
               const val = cols[0].trim();
@@ -238,7 +291,7 @@
             }
           });
 
-          // 2. Гнучке сканування всієї сітки на ключові слова режимів
+          // 2. Режим системи
           currentSystemMode = "навчання";
           systemModeMessage = "";
 
@@ -262,11 +315,30 @@
             if (currentSystemMode !== 'навчання') break;
           }
 
+          // 3. Зчитування налаштувань семестру (Рядок 2: E2, F2, G2 або за ключовими словами)
+          if (parsed.length > 1) {
+            const row2 = parsed[1];
+            // E2 (колонка index 4) - Семестр
+            if (row2[4]) semesterSettings.semester = row2[4].trim();
+            
+            // F2 (колонка index 5) - Дата початку
+            if (row2[5]) {
+              const pDate = parseCustomDate(row2[5]);
+              if (pDate) semesterSettings.startDate = pDate;
+            }
+            
+            // G2 (колонка index 6) - День зміни тижня
+            if (row2[6]) semesterSettings.changeDay = row2[6].trim();
+          }
+
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
         }
       } catch (e) {
         console.warn("Помилка завантаження аркуша груп:", e);
       }
+
+      currentWeek = calculateCurrentWeek();
+      setWeek(currentWeek);
 
       const urlParams = new URLSearchParams(window.location.search);
       const groupFromUrl = urlParams.get('group');
@@ -290,7 +362,9 @@
       const appTitleElem = document.getElementById('app-title');
       if (appTitleElem) appTitleElem.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> ${title}`;
       const groupSubElem = document.getElementById('group-subtitle');
-      if (groupSubElem) groupSubElem.textContent = `Група: ${groupName}`;
+      if (groupSubElem) {
+        groupSubElem.textContent = `Група: ${groupName} • ${semesterSettings.semester ? `${semesterSettings.semester} семестр` : ''}`;
+      }
 
       const manifest = {
         name: title,
@@ -315,28 +389,24 @@
     async function applyModeAndFetch() {
       const controls = document.getElementById('schedule-controls');
 
-      // 1. КАНІКУЛИ
       if (currentSystemMode === 'канікули') {
         if (controls) controls.classList.add('hidden');
         renderVacationMode();
         return;
       }
 
-      // 2. ПРАКТИКА
       if (currentSystemMode === 'практика') {
         if (controls) controls.classList.add('hidden');
         renderPracticeMode();
         return;
       }
 
-      // 3. СЕСІЯ
       if (currentSystemMode === 'сесія') {
         if (controls) controls.classList.add('hidden');
         await fetchSessionSchedule(currentGroup);
         return;
       }
 
-      // 4. НАВЧАННЯ (СТАНДАРТ)
       if (controls) controls.classList.remove('hidden');
       await fetchScheduleAndReplacements(currentGroup);
     }
@@ -915,7 +985,7 @@
     if (w2Btn) w2Btn.onclick = () => setWeek(2);
 
     const refBtn = document.getElementById('refresh-btn');
-    if (refBtn) refBtn.onclick = () => applyModeAndFetch();
+    if (refBtn) refBtn.onclick = () => loadGroupsAndMode();
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -943,7 +1013,6 @@
     }, 30000);
 
     renderDays();
-    setWeek(currentWeek);
     checkBellState();
     loadGroupsAndMode();
   </script>
