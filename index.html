@@ -174,7 +174,7 @@
     </div>
   </div>
 
-  <!-- МОДАЛЬНЕ ВІКНО 2: ДОДАВАННЯ ТА РЕДАГУВАННЯ ПАРИ / ЗАМІНА -->
+  <!-- МОДАЛЬНЕ ВІКНО 2: ДОДАВАННЯ ТА РЕДАГУВАННЯ ПАРИ / ЗАМІНА / ОЧИЩЕННЯ -->
   <div id="edit-pair-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
     <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-slate-700 mb-3">
@@ -204,7 +204,15 @@
           </div>
         </div>
 
-        <!-- Вибір номера пари -->
+        <!-- Вибір дати через календар (для заміни або скасування) -->
+        <div id="modal-date-picker-box" class="hidden">
+          <label class="font-semibold text-amber-300 block mb-1 flex items-center gap-1.5">
+            <i class="fa-regular fa-calendar-days"></i> Дата події (календар):
+          </label>
+          <input type="date" id="modal-event-date-input" class="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-white font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none">
+        </div>
+
+        <!-- Вибір номера пари (відображається при додаванні з нуля) -->
         <div id="modal-pair-number-box">
           <label class="font-semibold text-slate-400 block mb-1">Номер пари:</label>
           <div class="grid grid-cols-6 gap-1 bg-slate-900 p-1 rounded-xl" id="pair-num-selector">
@@ -241,7 +249,10 @@
           </div>
 
           <div id="modal-teacher-box">
-            <label class="font-semibold text-slate-400 block mb-1">Викладач:</label>
+            <label class="font-semibold text-slate-400 block mb-1 flex items-center justify-between">
+              <span>Викладач:</span>
+              <span class="text-[10px] text-emerald-400 font-normal"><i class="fa-solid fa-link mr-1"></i>Meet підтягується автоматично</span>
+            </label>
             <select id="modal-teacher-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
               <option value="">Оберіть зі списку або залиште порожнім</option>
             </select>
@@ -257,21 +268,22 @@
               <input type="text" id="modal-time-input" placeholder="09:00 - 10:20" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </div>
           </div>
-
-          <div id="modal-meet-container" class="hidden">
-            <label class="font-semibold text-slate-400 block mb-1">Новий Meet (для заміни):</label>
-            <input type="url" id="modal-meet-input" placeholder="https://meet.google.com/..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-          </div>
         </div>
 
         <div id="modal-cancel-notice" class="hidden bg-rose-950/40 border border-rose-500/40 p-3 rounded-xl text-rose-200">
-          <p class="font-bold"><i class="fa-solid fa-ban mr-1"></i> Пара буде скасована на поточний день</p>
-          <p class="text-[11px] text-slate-400 mt-1">У журналі замін з'явиться запис про скасування заняття.</p>
+          <p class="font-bold"><i class="fa-solid fa-ban mr-1"></i> Заняття не відбудеться</p>
+          <p class="text-[11px] text-slate-400 mt-1">У журналі замін буде створено запис про скасування пари на обрану дату.</p>
         </div>
 
-        <div class="pt-2">
+        <!-- Кнопки дій -->
+        <div class="pt-2 flex flex-col gap-2">
           <button id="modal-submit-btn" onclick="submitPairChanges()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up"></i> Зберегти в розклад
+          </button>
+
+          <!-- Кнопка очищення пари з постійного розкладу (аналог прапорця в таблиці) -->
+          <button id="modal-clear-schedule-btn" type="button" onclick="clearCurrentSchedulePair()" class="w-full bg-slate-700 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 border border-slate-600 font-semibold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
+            <i class="fa-regular fa-trash-can text-rose-400"></i> Очистити цю пару з розкладу
           </button>
         </div>
       </div>
@@ -297,6 +309,26 @@
         </button>
         <button onclick="submitAnnouncement(true)" class="bg-slate-700 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 border border-slate-600 px-3 py-2.5 rounded-xl text-xs font-semibold">
           Очистити
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНЕ ВІКНО 4: ПІДТВЕРДЖЕННЯ ТА КНОПКА "СПОВІСТИТИ ГРУПУ" -->
+  <div id="notify-prompt-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-emerald-500/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+      <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto text-2xl mb-3 shadow-inner">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <h3 class="text-base font-bold text-white">Зміни успішно збережено!</h3>
+      <p id="notify-prompt-desc" class="text-xs text-slate-300 mt-1 mb-5">Бажаєте надіслати Push-сповіщення усій групі прямо зараз?</p>
+      
+      <div class="space-y-2">
+        <button id="send-push-confirm-btn" onclick="executePushToGroup()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i> Сповістити групу
+        </button>
+        <button onclick="closeNotifyPromptModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold text-xs py-2.5 rounded-xl transition-all">
+          Не сповіщати
         </button>
       </div>
     </div>
@@ -360,6 +392,7 @@
     let currentModalAction = 'updatePair';
     let selectedEditWeek = 'Всі';
     let selectedPairNum = '1';
+    let pendingPushPayload = null;
 
     function getInitialDay() {
       const d = new Date().getDay();
@@ -499,7 +532,7 @@
 
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
-      // Захищений запит: виключає колонку D (PIN) з публічної відповіді CSV
+      // Захищений запит: виключає колонку D (PIN) з відповіді
       const q = encodeURIComponent('select A, B, C, E, F, G, H');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&tq=${q}&t=${Date.now()}`;
       
@@ -523,15 +556,14 @@
             }
           });
 
-          // Індекси зі зміщенням (колонка D виключена запитом select)
           if (parsed.length > 1) {
             const r2 = parsed[1];
-            if (r2[4]) semesterSettings.semester = r2[4].trim(); // Колонка F (Семестр)
+            if (r2[4]) semesterSettings.semester = r2[4].trim();
             if (r2[5]) {
-              const pDate = parseCustomDate(r2[5]);           // Колонка G (Початок)
+              const pDate = parseCustomDate(r2[5]);
               if (pDate) semesterSettings.startDate = pDate;
             }
-            if (r2[6]) semesterSettings.changeDay = r2[6].trim(); // Колонка H (День зміни)
+            if (r2[6]) semesterSettings.changeDay = r2[6].trim();
           }
 
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
@@ -958,7 +990,7 @@
                 </span>
 
                 ${isAuth ? `
-                  <button onclick="openEditModal('${itemJson}', '${targetDateIso}')" title="Редагувати / Заміна" class="text-blue-400 hover:text-white bg-slate-700/60 p-1.5 rounded-lg text-xs transition-colors">
+                  <button onclick="openEditModal('${itemJson}', '${targetDateIso}')" title="Редагувати / Заміна / Скасувати" class="text-blue-400 hover:text-white bg-slate-700/60 p-1.5 rounded-lg text-xs transition-colors">
                     <i class="fa-solid fa-pen"></i>
                   </button>
                 ` : ''}
@@ -1117,13 +1149,14 @@
       document.getElementById('modal-pair-subtitle').textContent = `День: ${currentDay} (${currentGroup})`;
       
       document.getElementById('modal-pair-number-box').classList.remove('hidden');
+      document.getElementById('modal-event-date-input').value = dateIso;
+
       selectPairNumber('1');
       selectEditWeek('Всі');
 
       document.getElementById('modal-subject-input').value = '';
       document.getElementById('modal-room-input').value = 'Онлайн';
       document.getElementById('modal-time-input').value = DEFAULT_TIMES['1'];
-      document.getElementById('modal-meet-input').value = '';
 
       const tSelect = document.getElementById('modal-teacher-select');
       if (tSelect) tSelect.value = '';
@@ -1143,10 +1176,10 @@
       document.getElementById('modal-pair-number-box').classList.add('hidden');
       selectedPairNum = currentEditingItem.num;
 
+      document.getElementById('modal-event-date-input').value = dateIso;
       document.getElementById('modal-subject-input').value = currentEditingItem.subject || '';
       document.getElementById('modal-room-input').value = currentEditingItem.room || '';
       document.getElementById('modal-time-input').value = currentEditingItem.time || DEFAULT_TIMES[currentEditingItem.num] || '';
-      document.getElementById('modal-meet-input').value = '';
 
       const tSelect = document.getElementById('modal-teacher-select');
       if (tSelect) tSelect.value = currentEditingItem.teacher || '';
@@ -1169,9 +1202,10 @@
       const bCancel = document.getElementById('mode-cancel-btn');
       const fContainer = document.getElementById('modal-fields-container');
       const cNotice = document.getElementById('modal-cancel-notice');
-      const mContainer = document.getElementById('modal-meet-container');
       const wSelector = document.getElementById('modal-week-selector-box');
       const pNumBox = document.getElementById('modal-pair-number-box');
+      const dPicker = document.getElementById('modal-date-picker-box');
+      const clearBtn = document.getElementById('modal-clear-schedule-btn');
       const sBtn = document.getElementById('modal-submit-btn');
 
       [bUpdate, bReplace, bCancel].forEach(b => b.className = "py-2 font-bold rounded-lg text-slate-400 hover:text-white");
@@ -1180,8 +1214,9 @@
         bUpdate.className = "py-2 font-bold rounded-lg bg-blue-600 text-white shadow";
         fContainer.classList.remove('hidden');
         cNotice.classList.add('hidden');
-        mContainer.classList.add('hidden');
         wSelector.classList.remove('hidden');
+        dPicker.classList.add('hidden');
+        clearBtn.classList.remove('hidden');
         if (isCreatingNew) pNumBox.classList.remove('hidden');
         sBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
         sBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Зберегти в розклад';
@@ -1189,25 +1224,28 @@
         bReplace.className = "py-2 font-bold rounded-lg bg-amber-600 text-white shadow";
         fContainer.classList.remove('hidden');
         cNotice.classList.add('hidden');
-        mContainer.classList.remove('hidden');
         wSelector.classList.add('hidden');
         pNumBox.classList.add('hidden');
+        dPicker.classList.remove('hidden');
+        clearBtn.classList.add('hidden');
         sBtn.className = "w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
-        sBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Встановити заміну на цей день';
+        sBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Встановити заміну';
       } else if (mode === 'cancelPair') {
         bCancel.className = "py-2 font-bold rounded-lg bg-rose-600 text-white shadow";
         fContainer.classList.add('hidden');
         cNotice.classList.remove('hidden');
         wSelector.classList.add('hidden');
         pNumBox.classList.add('hidden');
+        dPicker.classList.remove('hidden');
+        clearBtn.classList.add('hidden');
         sBtn.className = "w-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2";
-        sBtn.innerHTML = '<i class="fa-solid fa-ban"></i> Підтвердити скасування пари';
+        sBtn.innerHTML = '<i class="fa-solid fa-ban"></i> Підтвердити скасування';
       }
     }
 
     async function submitPairChanges() {
       if (SCRIPT_WEB_APP_URL.includes('placeholder')) {
-        alert("Будь ласка, вставте URL вашого розгорнутого Web App у змінну SCRIPT_WEB_APP_URL в index.html!");
+        alert("Вкажіть актуальний SCRIPT_WEB_APP_URL в index.html!");
         return;
       }
 
@@ -1223,6 +1261,7 @@
       submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Збереження...';
 
       const pairNum = isCreatingNew ? selectedPairNum : currentEditingItem.num;
+      const eventDate = document.getElementById('modal-event-date-input').value || currentEditingItem.targetDateIso;
 
       const payload = {
         group: currentGroup,
@@ -1240,15 +1279,14 @@
         payload.room = document.getElementById('modal-room-input').value.trim();
       } else if (currentModalAction === 'addReplacement') {
         payload.action = 'addReplacement';
-        payload.date = currentEditingItem.targetDateIso;
+        payload.date = eventDate;
         payload.status = 'Заміна';
         payload.subject = document.getElementById('modal-subject-input').value.trim();
         payload.teacher = document.getElementById('modal-teacher-select').value.trim();
         payload.room = document.getElementById('modal-room-input').value.trim();
-        payload.meet = document.getElementById('modal-meet-input').value.trim();
       } else if (currentModalAction === 'cancelPair') {
         payload.action = 'addReplacement';
-        payload.date = currentEditingItem.targetDateIso;
+        payload.date = eventDate;
         payload.status = 'Скасовано';
         payload.subject = currentEditingItem.subject || '';
       }
@@ -1261,16 +1299,117 @@
         const result = await res.json();
 
         if (result.success) {
-          alert(result.message || "Успішно збережено!");
+          closeEditModal();
+          fetchScheduleAndReplacements(currentGroup);
+
+          // Якщо збережено заміну або скасування — пропонуємо кнопкою сповістити групу
+          if (currentModalAction === 'addReplacement' || currentModalAction === 'cancelPair') {
+            pendingPushPayload = {
+              group: currentGroup,
+              pin: pin,
+              date: eventDate,
+              num: pairNum,
+              status: currentModalAction === 'cancelPair' ? 'скасовано' : 'заміна',
+              subject: payload.subject,
+              teacher: payload.teacher || '',
+              rowIndex: result.rowIndex
+            };
+            openNotifyPromptModal();
+          } else {
+            alert(result.message || "Успішно збережено в розклад!");
+          }
+        } else {
+          alert("Помилка: " + (result.error || "Не вдалося зберегти"));
+        }
+      } catch (e) {
+        alert("Помилка зв'язку: " + e.toString());
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    // Очищення пари з постійного розкладу (аналог прапорця в таблиці)
+    async function clearCurrentSchedulePair() {
+      if (!confirm("Ви дійсно хочете очистити цю пару з постійного розкладу? Дані предмета та викладача будуть стерті.")) {
+        return;
+      }
+
+      const pin = localStorage.getItem(`pin_${currentGroup.toLowerCase()}`);
+      if (!pin) {
+        openAuthModal();
+        return;
+      }
+
+      const clearBtn = document.getElementById('modal-clear-schedule-btn');
+      clearBtn.disabled = true;
+      clearBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Очищення...';
+
+      try {
+        const res = await fetch(SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'clearPair',
+            group: currentGroup,
+            pin: pin,
+            day: currentEditingItem.day,
+            num: isCreatingNew ? selectedPairNum : currentEditingItem.num,
+            targetWeek: selectedEditWeek
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          alert(result.message || "Пару очищено!");
           closeEditModal();
           fetchScheduleAndReplacements(currentGroup);
         } else {
-          alert("Помилка: " + (result.error || "Не вдалося виконати дію"));
+          alert("Помилка: " + result.error);
         }
       } catch (e) {
-        alert("Помилка зв'язку з сервером: " + e.toString());
+        alert("Помилка: " + e.toString());
       } finally {
-        submitBtn.disabled = false;
+        clearBtn.disabled = false;
+      }
+    }
+
+    // Модальне вікно сповіщення групи після збереження заміни
+    function openNotifyPromptModal() {
+      if (!pendingPushPayload) return;
+      const desc = document.getElementById('notify-prompt-desc');
+      desc.textContent = `Пару №${pendingPushPayload.num} (${pendingPushPayload.status.toUpperCase()}) на ${pendingPushPayload.date} збережено. Надіслати Push-сповіщення усім студентам групи?`;
+      document.getElementById('notify-prompt-modal').classList.remove('hidden');
+    }
+
+    function closeNotifyPromptModal() {
+      document.getElementById('notify-prompt-modal').classList.add('hidden');
+      pendingPushPayload = null;
+    }
+
+    async function executePushToGroup() {
+      if (!pendingPushPayload) return;
+      const btn = document.getElementById('send-push-confirm-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Відправка...';
+
+      try {
+        const res = await fetch(SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'sendReplacementPush',
+            ...pendingPushPayload
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          alert("Успішно! Сповіщення надіслано групі та зафіксовано в таблиці.");
+          closeNotifyPromptModal();
+          fetchScheduleAndReplacements(currentGroup);
+        } else {
+          alert("Помилка відправки: " + result.error);
+        }
+      } catch (e) {
+        alert("Помилка зв'язку: " + e.toString());
+      } finally {
+        btn.disabled = false;
       }
     }
 
