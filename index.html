@@ -499,7 +499,9 @@
 
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&t=${Date.now()}`;
+      // Захищений запит: виключає колонку D (PIN) з публічної відповіді CSV
+      const q = encodeURIComponent('select A, B, C, E, F, G, H');
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&tq=${q}&t=${Date.now()}`;
       
       try {
         const res = await fetch(url);
@@ -521,14 +523,15 @@
             }
           });
 
+          // Індекси зі зміщенням (колонка D виключена запитом select)
           if (parsed.length > 1) {
             const r2 = parsed[1];
-            if (r2[5]) semesterSettings.semester = r2[5].trim();
-            if (r2[6]) {
-              const pDate = parseCustomDate(r2[6]);
+            if (r2[4]) semesterSettings.semester = r2[4].trim(); // Колонка F (Семестр)
+            if (r2[5]) {
+              const pDate = parseCustomDate(r2[5]);           // Колонка G (Початок)
               if (pDate) semesterSettings.startDate = pDate;
             }
-            if (r2[7]) semesterSettings.changeDay = r2[7].trim();
+            if (r2[6]) semesterSettings.changeDay = r2[6].trim(); // Колонка H (День зміни)
           }
 
           if (parsedGroups.length > 0) GROUPS = parsedGroups;
