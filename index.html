@@ -102,7 +102,7 @@
       </div>
     </div>
 
-    <!-- Кнопка створення оголошення (якщо його немає в шапці) -->
+    <!-- Кнопка створення оголошення -->
     <div id="add-announcement-box" class="hidden">
       <button onclick="openAnnouncementModal()" class="w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-700/80 border border-dashed border-amber-500/50 rounded-2xl text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 shadow-sm transition-all">
         <i class="fa-solid fa-bullhorn"></i> Додати оголошення для групи
@@ -120,7 +120,7 @@
       </button>
     </div>
 
-    <!-- Перемикач тижня та днів -->
+    <!-- Перемикач тижня та днів (6 днів: Пн-Сб) -->
     <div id="schedule-controls" class="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 shadow-sm flex flex-col gap-3">
       <div class="flex items-center justify-between bg-slate-900/70 p-1 rounded-xl">
         <button id="week-1-btn" class="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400">
@@ -131,7 +131,7 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-5 gap-1.5" id="days-container">
+      <div class="grid grid-cols-6 gap-1.5" id="days-container">
       </div>
     </div>
 
@@ -212,7 +212,7 @@
           <input type="date" id="modal-event-date-input" class="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-white font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none">
         </div>
 
-        <!-- Вибір номера пари (відображається при додаванні з нуля) -->
+        <!-- Вибір номера пари -->
         <div id="modal-pair-number-box">
           <label class="font-semibold text-slate-400 block mb-1">Номер пари:</label>
           <div class="grid grid-cols-6 gap-1 bg-slate-900 p-1 rounded-xl" id="pair-num-selector">
@@ -264,8 +264,8 @@
               <input type="text" id="modal-room-input" placeholder="Онлайн / ауд." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </div>
             <div>
-              <label class="font-semibold text-slate-400 block mb-1">Час пари:</label>
-              <input type="text" id="modal-time-input" placeholder="09:00 - 10:20" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <label class="font-semibold text-slate-400 block mb-1">Час пари (фіксований):</label>
+              <input type="text" id="modal-time-input" readonly placeholder="09:00 - 10:20" class="w-full bg-slate-900/60 border border-slate-700/80 rounded-xl px-3 py-2 text-slate-400 font-mono cursor-not-allowed select-none focus:outline-none">
             </div>
           </div>
         </div>
@@ -281,7 +281,7 @@
             <i class="fa-solid fa-cloud-arrow-up"></i> Зберегти в розклад
           </button>
 
-          <!-- Кнопка очищення пари з постійного розкладу (аналог прапорця в таблиці) -->
+          <!-- Кнопка очищення пари з постійного розкладу -->
           <button id="modal-clear-schedule-btn" type="button" onclick="clearCurrentSchedulePair()" class="w-full bg-slate-700 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 border border-slate-600 font-semibold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
             <i class="fa-regular fa-trash-can text-rose-400"></i> Очистити цю пару з розкладу
           </button>
@@ -361,12 +361,14 @@
       'ТМ-5.215к', 'ТР-5.216', 'ТР-5.217к'
     ];
 
+    // Додано Суботу (6 днів)
     const DAYS = [
       { id: 'Пн', name: 'Понеділок' },
       { id: 'Вт', name: 'Вівторок' },
       { id: 'Ср', name: 'Середа' },
       { id: 'Чт', name: 'Четвер' },
-      { id: 'Пт', name: "П'ятниця" }
+      { id: 'Пт', name: "П'ятниця" },
+      { id: 'Сб', name: 'Субота' }
     ];
 
     let semesterSettings = {
@@ -394,9 +396,10 @@
     let selectedPairNum = '1';
     let pendingPushPayload = null;
 
+    // Враховує Пн-Сб (1..6)
     function getInitialDay() {
       const d = new Date().getDay();
-      return (d >= 1 && d <= 5) ? DAYS[d - 1].id : 'Пн';
+      return (d >= 1 && d <= 6) ? DAYS[d - 1].id : 'Пн';
     }
 
     function parseWeekdayNameToIndex(name) {
@@ -532,7 +535,6 @@
 
     async function loadGroupsAndMode() {
       const select = document.getElementById('group-select');
-      // Захищений запит: виключає колонку D (PIN) з відповіді
       const q = encodeURIComponent('select A, B, C, E, F, G, H');
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Групи')}&tq=${q}&t=${Date.now()}`;
       
@@ -848,7 +850,8 @@
         for (let i = scheduleHeaderIndex + 1; i < parsedRows.length; i++) {
           const cols = parsedRows[i];
           if (cols.length >= 5 && cols[0]) {
-            const validDays = ['пн', 'вт', 'ср', 'чт', 'пт'];
+            // Підтримка суботи включно
+            const validDays = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
             if (validDays.includes(cols[0].toLowerCase())) {
               rows.push({
                 day: cols[0],
@@ -896,7 +899,8 @@
 
       const now = new Date();
       const currentDayOfWeek = now.getDay() || 7;
-      const targetDayIndex = ['пн', 'вт', 'ср', 'чт', 'пт'].indexOf(currentDay.toLowerCase()) + 1;
+      // Враховуємо суботу (1..6)
+      const targetDayIndex = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб'].indexOf(currentDay.toLowerCase()) + 1;
       const targetDateObj = new Date(now);
       targetDateObj.setDate(now.getDate() + (targetDayIndex - currentDayOfWeek));
       const y = targetDateObj.getFullYear();
@@ -1115,6 +1119,7 @@
           btn.className = "pair-num-btn py-1.5 font-bold rounded-lg text-slate-400 hover:text-white";
         }
       });
+      // Автопідстановка фіксованого часу пари
       if (DEFAULT_TIMES[num]) {
         document.getElementById('modal-time-input').value = DEFAULT_TIMES[num];
       }
@@ -1179,7 +1184,8 @@
       document.getElementById('modal-event-date-input').value = dateIso;
       document.getElementById('modal-subject-input').value = currentEditingItem.subject || '';
       document.getElementById('modal-room-input').value = currentEditingItem.room || '';
-      document.getElementById('modal-time-input').value = currentEditingItem.time || DEFAULT_TIMES[currentEditingItem.num] || '';
+      // Фіксований час із сітки за номером пари
+      document.getElementById('modal-time-input').value = DEFAULT_TIMES[currentEditingItem.num] || currentEditingItem.time || '';
 
       const tSelect = document.getElementById('modal-teacher-select');
       if (tSelect) tSelect.value = currentEditingItem.teacher || '';
@@ -1262,13 +1268,14 @@
 
       const pairNum = isCreatingNew ? selectedPairNum : currentEditingItem.num;
       const eventDate = document.getElementById('modal-event-date-input').value || currentEditingItem.targetDateIso;
+      const autoPairTime = DEFAULT_TIMES[pairNum] || '09:00 - 10:20';
 
       const payload = {
         group: currentGroup,
         pin: pin,
         day: currentEditingItem.day,
         num: pairNum,
-        time: document.getElementById('modal-time-input').value.trim() || DEFAULT_TIMES[pairNum]
+        time: autoPairTime
       };
 
       if (currentModalAction === 'updatePair') {
@@ -1328,7 +1335,7 @@
       }
     }
 
-    // Очищення пари з постійного розкладу (аналог прапорця в таблиці)
+    // Очищення пари з постійного розкладу
     async function clearCurrentSchedulePair() {
       if (!confirm("Ви дійсно хочете очистити цю пару з постійного розкладу? Дані предмета та викладача будуть стерті.")) {
         return;
